@@ -14,12 +14,20 @@ class QuizQuestionResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        //return parent::toArray($request);
-        return [
+        $user = $request->user();
+        $quiz = $this->quiz;
+
+        $data = [
             'id' => $this->id,
-            //'quiz_id' => $this->quiz_id,
-            'question' => $this->question,            
+            'quiz_id' => $this->quiz_id,
+            'question' => $this->question,
             'created_at' => $this->created_at,
         ];
+
+        if ($user && ($user->id === $quiz->instructor_id)) {
+            $data['answers'] = QuizAnswerResource::collection($this->whenLoaded('answers'));
+        }
+
+        return $data;
     }
 }

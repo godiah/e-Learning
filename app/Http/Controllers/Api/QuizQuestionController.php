@@ -4,16 +4,32 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\QuizQuestionResource;
+use App\Models\Quiz;
+use App\Models\QuizAnswer;
 use App\Models\QuizQuestion;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class QuizQuestionController extends Controller
 {
-    //Display all questions
-    public function index()
+    use AuthorizesRequests;
+
+    //Display all questions for a quiz
+    public function index(Quiz $quiz)
     {
-        $question = QuizQuestion::get();
+        $user = request()->user();
+
+        $question = $quiz->questions();
+        
+        if ($user && ($user->id === $quiz->instructor_id)) {
+            $question->with('answers');
+        }
+        
+        $question = $question->get();
+
         if($question->count() > 0)
         {
             return QuizQuestionResource::collection($question);
@@ -24,100 +40,220 @@ class QuizQuestionController extends Controller
         }
     }
 
-    //Display a single quiz
-    public function show(QuizQuestion $question) 
+    //Display a single quiz question
+    public function show(Quiz $quiz, QuizQuestion $question) 
     {
-         $question->load('answers'); // Only load answers to avoid loading quiz recursively
+        if ($question->quiz_id !== $quiz->id) {
+            return response()->json([
+                'message' => 'Question not found in this quiz'
+            ], 404);
+        }
+
+        $user = request()->user();
+
+        if ($user && ($user->id === $quiz->instructor_id)) {
+            $question->load('answers');
+        }
+
         return new QuizQuestionResource($question);
     }
 
     //Add a question
-    public function store(Request $request)
+    public function store(Request $request, Quiz $quiz)
     {
-        $validator = Validator::make($request->all(),[
-            'quiz_id' => 'required|exists:quizzes,id',  
+        
+        try {
+            $this->authorize('manage', $quiz);
+        } catch (AuthorizationException $e) {
+            return response()->json(['message' => 'Unauthorized access!'], 403);
+        }
+
+        $validator = Validator::make($request->all(),[              
             'question' => [
                 'required',
                 'string',
-                // Ensure the question is unique within the same quiz
-                function ($attribute, $value, $fail) use ($request) {
-                    $exists = QuizQuestion::where('quiz_id', $request->quiz_id)
+                function ($attribute, $value, $fail) use ($quiz) {
+                    $exists = QuizQuestion::where('quiz_id', $quiz->quiz_id)
                         ->where('question', $value)
                         ->exists();
                     if ($exists) {
                         $fail("The question already exists!");
                     }
                 },
-            ],                  
+            ],
+
+            'answers' => 'required|array|min:1',
+            'answers.*.answer' => 'required|string|max:255',
+            'answers.*.is_correct' => 'required|boolean',                  
         ]);
         
         if($validator->fails())
         {
             return response()->json([
-                'message' => 'All Fields are mandatory',
-                'error' => $validator->messages(),
+                'message' => 'Validation failed',
+                'errors' => $validator->messages(),
             ], 422);
         }
 
-        $question = QuizQuestion::create([
-            'quiz_id' => $request->quiz_id,
-            'question' => $request->question,
-        ]);
+        $hasCorrectAnswer = collect($request->answers)->contains('is_correct', true);
+        if (!$hasCorrectAnswer) {
+            return response()->json([
+                'message' => 'At least one answer must be marked as correct',
+            ], 422);
+        }
 
-        return response()->json([
-            'message' => 'Question created successfully',
-            'data' => new QuizQuestionResource($question)
-        ]);
+        try {
+            $result = DB::transaction(function () use ($request, $quiz) {
+                $question = $quiz->questions()->create([
+                    'question' => $request->question,
+                ]);
+
+                // Create answers
+                foreach ($request->answers as $answerData) {
+                    $question->answers()->create([
+                        'answer' => $answerData['answer'],
+                        'is_correct' => $answerData['is_correct'],
+                    ]);
+                }
+
+                return $question;
+            });
+
+            // Load the answers relation for the resource
+            $result->load('answers');
+
+            return response()->json([
+                'message' => 'Question and answers created successfully',
+                'data' => new QuizQuestionResource($result)
+            ], 201);
+        }catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to create question and answers',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     //Update a question
-    public function update(Request $request, QuizQuestion $question)
+    public function update(Request $request, Quiz $quiz, QuizQuestion $question)
     {
-        $validator = Validator::make($request->all(),[
-            'quiz_id' => 'exists:quizzes,id',  
+        try {
+            $this->authorize('manage', $quiz);
+        } catch (AuthorizationException $e) {
+            return response()->json(['message' => 'Unauthorized access!'], 403);
+        }        
+
+        $validator = Validator::make($request->all(),[  
             'question' => [
                 'string',
-                // Ensure the question is unique within the same quiz if it is being updated
-                function ($attribute, $value, $fail) use ($request, $question) {
-                    if ($value && $request->quiz_id) {
-                        $exists = QuizQuestion::where('quiz_id', $request->quiz_id)
-                            ->where('question', $value)
-                            ->where('id', '!=', $question->id) // Ignore current question
-                            ->exists();
-                        if ($exists) {
-                            $fail("The question already exists!");
-                        }
+                'sometimes',
+                function ($attribute, $value, $fail) use ($quiz, $question) {
+                    $exists = QuizQuestion::where('quiz_id', $quiz->id)
+                        ->where('question', $value)
+                        ->where('id', '!=', $question->id) 
+                        ->exists();
+
+                    if ($exists) {
+                        $fail("The question already exists!");
                     }
                 },
-            ],                  
+            ],
+            'answers' => 'required|array|min:1',
+            'answers.*.id' => 'sometimes|exists:quiz_answers,id',
+            'answers.*.answer' => 'required|string|max:255',
+            'answers.*.is_correct' => 'required|boolean',                  
         ]);
         
         if($validator->fails())
         {
             return response()->json([
-                'message' => 'All Fields are mandatory',
-                'error' => $validator->messages(),
+                'message' => 'Validation failed',
+                'errors' => $validator->messages(),
             ], 422);
         }
 
-        $question ->update([
-            'quiz_id' => $request->quiz_id,
-            'question' => $request->question,
-        ]);
+        $hasCorrectAnswer = collect($request->answers)->contains('is_correct', true);
+        if (!$hasCorrectAnswer) {
+            return response()->json([
+                'message' => 'At least one answer must be marked as correct',
+            ], 422);
+        }
 
-        return response()->json([
-            'message' => 'Question updated successfully',
-            'data' => new QuizQuestionResource($question)
-        ]);
+        try {
+            $result = DB::transaction(function () use ($request, $question) {
+                // Update question
+                $question->update([
+                    'question' => $request->question,
+                ]);
 
+                // Get existing answer IDs
+                $existingAnswerIds = $question->answers->pluck('id')->toArray();
+                $updatedAnswerIds = [];
+
+                // Update or create answers
+                foreach ($request->answers as $answerData) {
+                    if (isset($answerData['id'])) {
+                        // Update existing answer
+                        $answer = QuizAnswer::find($answerData['id']);
+                        if ($answer) {
+                            $answer->update([
+                                'answer' => $answerData['answer'],
+                                'is_correct' => $answerData['is_correct'],
+                            ]);
+                            $updatedAnswerIds[] = $answer->id;
+                        }
+                    } else {
+                        // Create new answer
+                        $answer = $question->answers()->create([
+                            'answer' => $answerData['answer'],
+                            'is_correct' => $answerData['is_correct'],
+                        ]);
+                        $updatedAnswerIds[] = $answer->id;
+                    }
+                }
+
+                // Delete answers that weren't updated or created
+                $answersToDelete = array_diff($existingAnswerIds, $updatedAnswerIds);
+                QuizAnswer::whereIn('id', $answersToDelete)->delete();
+
+                return $question;
+            });
+
+            $result->load('answers');
+
+            return response()->json([
+                'message' => 'Question and answers updated successfully',
+                'data' => new QuizQuestionResource($result)
+            ]);
+
+        }catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to update question and answers',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     //Delete a question
-    public function destroy(QuizQuestion $question)
+    public function destroy(Quiz $quiz, QuizQuestion $question)
     {
-        $question->delete();
-        return response()->json([
-            'message' => 'Question deleted successfully'
-        ]);
+        $this->authorize('manage', $quiz);
+        
+        try {
+            DB::transaction(function () use ($question) {                
+                $question->answers()->delete();
+                $question->delete();
+            });
+
+            return response()->json([
+                'message' => 'Question and associated answers deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to delete question and answers',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

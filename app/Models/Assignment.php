@@ -9,15 +9,20 @@ class Assignment extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['lesson_id', 'title', 'description', 'due_date'];
+    protected $fillable = ['lesson_id', 'title', 'instructor_id', 'description'];
 
     public function lesson()
     {
         return $this->belongsTo(Lessons::class);
     }
 
-    public function userAssignments()
+    public function assignmentsubmission()
     {
-        return $this->hasMany(UserAssignment::class);
+        return $this->hasMany(AssignmentSubmission::class);
+    }
+
+    public function instructor()
+    {
+        return $this->belongsTo(User::class, 'instructor_id');
     }
 }

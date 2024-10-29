@@ -13,7 +13,7 @@ class CategoriesController extends Controller
     //Displays all categories
     public function index()
     {
-        $categories = Categories::get();
+        $categories = Categories::paginate(10);
         if($categories->count() > 0)
         {
             return CategoriesResource::collection($categories);

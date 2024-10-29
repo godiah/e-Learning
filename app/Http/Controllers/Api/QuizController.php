@@ -4,17 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\QuizResource;
+use App\Models\Lessons;
 use App\Models\Quiz;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class QuizController extends Controller
 {
-    //Display all quizzes
-    public function index()
+    //Display  quizzes for a lesson
+    public function index(Lessons $lesson)
     {
-        $quiz = Quiz::get();
+        $quiz = $lesson->quizzes()
+                        ->with(['questions'])
+                        ->get();
         if($quiz->count() > 0)
         {
             return QuizResource::collection($quiz);
@@ -26,22 +30,36 @@ class QuizController extends Controller
     }
 
     //Display a single quiz
-    public function show(Quiz $quiz) 
+    public function show(Lessons $lesson, Quiz $quiz) 
     {
+        if ($quiz->lesson_id !== $lesson->id) 
+        {
+            return response()->json(['error' => 'Quiz not found in this lesson'], 404);
+        }
+
+        $quiz->load(['questions']);
+        
         return new QuizResource($quiz);
     }
 
     //Add a quiz/Store
-    public function store(Request $request)
+    public function store(Request $request, Lessons $lesson)
     {
-        $validator = Validator::make($request->all(),[
-            'lesson_id' => 'required|exists:lessons,id',  
+        $user = request()->user();
+    
+        if (!$user->is_instructor) {
+            return response()->json([
+                'message' => 'Unauthorized access.',
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(),[  
             'title' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('quizzes')->where(function ($query) use ($request) {
-                    return $query->where('lesson_id', $request->lesson_id);
+                Rule::unique('quizzes')->where(function ($query) use ($lesson) {
+                    return $query->where('lesson_id', $lesson->id);
                 }),
             ],                 
         ]);
@@ -54,9 +72,10 @@ class QuizController extends Controller
             ], 422);
         }
 
-        $quiz = Quiz::create([
-            'lesson_id' => $request->lesson_id,
+
+        $quiz = $lesson->quizzes()->create([
             'title' => $request->title,
+            'instructor_id' => $user->id,
         ]);
 
         return response()->json([
@@ -66,16 +85,35 @@ class QuizController extends Controller
     }
         
     //Update a quiz
-    public function update(Request $request, Quiz $quiz)
+    public function update(Request $request,Lessons $lesson, Quiz $quiz)
     {
-        $validator = Validator::make($request->all(),[
-            'lesson_id' => 'exists:lessons,id',  
+        $user = request()->user();
+    
+        if (!$user->is_instructor) {
+            return response()->json([
+                'message' => 'Unauthorized access.',
+            ], 403);
+        }
+
+        // Check if the authenticated instructor is the owner of the quiz
+        if ($quiz->instructor_id !== $user->id) {
+            return response()->json([
+                'message' => 'Unauthorized access.',
+            ], 403);
+        }
+
+        if ($quiz->lesson_id !== $lesson->id) 
+        {
+            return response()->json(['error' => 'Quiz not found in this lesson'], 404);
+        }
+
+        $validator = Validator::make($request->all(),[ 
             'title' => [
                 'string',
                 'max:255',
-                Rule::unique('quizzes')->where(function ($query) use ($request, $quiz) {
-                    return $query->where('lesson_id', $request->lesson_id ?? $quiz->lesson_id)
-                                 ->where('id', '!=', $quiz->id);
+                Rule::unique('quizzes')->where(function ($query) use ($lesson, $quiz) {
+                    return $query->where('lesson_id', $lesson->id)
+                                ->where('id', '!=', $quiz->id);
                 }),
             ],                  
         ]);
@@ -89,7 +127,6 @@ class QuizController extends Controller
         }
 
         $quiz ->update([
-            'lesson_id' => $request->lesson_id,
             'title' => $request->title,
         ]);
 
@@ -100,8 +137,27 @@ class QuizController extends Controller
     }
 
     //Delete a quiz
-    public function destroy(Quiz $quiz)
+    public function destroy(Lessons $lesson,Quiz $quiz)
     {
+        $user = request()->user();
+    
+        if (!$user->is_instructor) {
+            return response()->json([
+                'message' => 'Unauthorized access. Only instructors can delete quizzes.',
+            ], 403);
+        }
+
+        // Check if the authenticated instructor is the owner of the quiz
+        if ($quiz->instructor_id !== $user->id) {
+            return response()->json([
+                'message' => 'Unauthorized access. You can only delete your own quizzes.',
+            ], 403);
+        }
+
+        if ($quiz->lesson_id !== $lesson->id) 
+        {
+            return response()->json(['error' => 'Quiz not found in this lesson'], 404);
+        }
         $quiz->delete();
         return response()->json([
             'message' => 'Quiz deleted successfully'

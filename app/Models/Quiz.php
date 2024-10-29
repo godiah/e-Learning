@@ -9,7 +9,7 @@ class Quiz extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['lesson_id', 'title'];
+    protected $fillable = ['lesson_id', 'instructor_id', 'title'];
 
     public function lesson()
     {
@@ -19,5 +19,15 @@ class Quiz extends Model
     public function questions()
     {
         return $this->hasMany(QuizQuestion::class);
+    }
+
+    public function userattempts()
+    {
+        return $this->hasMany(QuizAttempt::class);
+    }
+
+    public function instructor()
+    {
+        return $this->belongsTo(User::class, 'instructor_id');
     }
 }

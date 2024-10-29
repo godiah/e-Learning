@@ -5,41 +5,74 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AssignmentResource;
 use App\Models\Assignment;
+use App\Models\Lessons;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class AssignmentController extends Controller
 {
-    public function index()
+    // Display Assignments for a given lesson
+    public function index(Lessons $lesson)
     {
-        $assignments = Assignment::get();
-        if($assignments->count() > 0)
+        $assignments = $lesson->assignments()->get();
+
+        if($assignments->isNotEmpty())
         {
             return AssignmentResource::collection($assignments);
         }
         else
         {
-            return response()->json(['message' => 'No available assignments found'], 404);
+            return response()->json(['message' => 'No available assignments for this lesson found'], 404);
         }        
     }
 
-    public function store(Request $request)
+    // Display a single assignment of a lesson
+    public function show(Lessons $lesson, Assignment $assignment)
     {
+        if($assignment->lesson_id !== $lesson->id)
+        {
+            return response()->json(['message' => 'Assignment does not exist in this lesson'], 404);
+        }
+
+        return new AssignmentResource($assignment);
+    }
+
+    // Add a new assignment to a lesson
+    public function store(Request $request, Lessons $lesson)
+    {
+        $user = request()->user();
+    
+        if (!$user->is_instructor || $lesson->course->instructor_id !== $user->id) {
+            return response()->json([
+                'message' => 'Unauthorized access.',
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
-            'lesson_id' => 'required|exists:lessons,id',
-            'title' => 'required|string|max:255|unique:App\Models\Assignment,title',
+            'title' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('assignments')->where(function ($query) use ($lesson) {
+                    return $query->where('lesson_id', $lesson->id);
+                })
+            ],
             'description' => 'nullable|string',
-            'due_date' => 'required|date',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'message' => 'Validation error',
+                'message' => 'Validation Failed',
                 'errors' => $validator->messages(),
             ], 422);
         }
 
-        $assignment = Assignment::create($request->all());
+        $assignment = $lesson->assignments()->create([
+            'title' => $request->title,
+            'description' => $request->description,
+            'instructor_id' => $user->id,
+        ]);
 
         return response()->json([
             'message' => 'Assignment created successfully',
@@ -47,18 +80,38 @@ class AssignmentController extends Controller
         ]);
     }
 
-    public function show(Assignment $assignment)
+    // Update an assignment
+    public function update(Request $request, Lessons $lesson, Assignment $assignment)
     {
-        return new AssignmentResource($assignment);
-    }
+        $user = request()->user();
+    
+        if (!$user->is_instructor) {
+            return response()->json([
+                'message' => 'Unauthorized access.',
+            ], 403);
+        }
 
-    public function update(Request $request, Assignment $assignment)
-    {
+        if ($assignment->instructor_id !== $user->id) {
+            return response()->json([
+                'message' => 'Unauthorized access.',
+            ], 403);
+        }
+
+        if ($assignment->lesson_id !== $lesson->id) 
+        {
+            return response()->json(['error' => 'Assignment not found in this lesson'], 404);
+        }
+
         $validator = Validator::make($request->all(), [
-            'lesson_id' => 'exists:lessons,id',
-            'title' => 'string|max:255',
-            'description' => 'nullable|string',
-            'due_date' => 'date',
+            'title' => [
+                'sometimes',
+                'string',
+                'max:255',
+                Rule::unique('assignments')->where(function ($query) use ($lesson) {
+                    return $query->where('lesson_id', $lesson->id);
+                })->ignore($assignment->id), 
+            ],
+            'description' => 'sometimes|nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -68,7 +121,7 @@ class AssignmentController extends Controller
             ], 422);
         }
 
-        $assignment->update($request->all());
+        $assignment->update($request->only(['title', 'description']));
 
         return response()->json([
             'message' => 'Assignment updated successfully',
@@ -76,9 +129,29 @@ class AssignmentController extends Controller
         ]);
     }
 
-    public function destroy(Assignment $assignment)
+    public function destroy(Lessons $lesson, Assignment $assignment)
     {
+        $user = request()->user();
+    
+        if (!$user->is_instructor) {
+            return response()->json([
+                'message' => 'Unauthorized access.',
+            ], 403);
+        }
+
+        if ($assignment->instructor_id !== $user->id) {
+            return response()->json([
+                'message' => 'Unauthorized access.',
+            ], 403);
+        }
+
+        if ($assignment->lesson_id !== $lesson->id) 
+        {
+            return response()->json(['error' => 'Assignment not found in this lesson'], 404);
+        }
+
         $assignment->delete();
+
         return response()->json(['message' => 'Assignment deleted successfully']);
     }
 }

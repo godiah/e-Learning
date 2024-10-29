@@ -18,6 +18,6 @@ class QuizQuestion extends Model
 
     public function answers()
     {
-        return $this->hasMany(QuizAnswer::class);
+        return $this->hasMany(QuizAnswer::class,'question_id');
     }
 }

@@ -21,11 +21,14 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role',
         'bio',
         'profile_pic_url',
-
+        'new_email',
+        'failed_login_attempts',
+        'locked_until',
+        'is_instructor',
     ];
+
     public function courses()
     {
         return $this->hasMany(Courses::class, 'instructor_id');
@@ -35,6 +38,52 @@ class User extends Authenticatable
     {
         return $this->hasMany(Enrollment::class);
     }
+
+    public function reviews()
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    public function discussions()
+    {
+        return $this->hasMany(Discussion::class);
+    }
+    
+    public function discussionReplies()
+    {
+        return $this->hasMany(DiscussionReply::class);
+    }
+
+    public function instructorApplication()
+    {
+        return $this->hasOne(InstructorApplication::class);
+    }
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'user_role');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->roles()->where('name', 'admin')->exists();
+    }
+
+    public function isInstructor(): bool
+    {
+        return $this->roles()->where('name', 'instructor')->exists();
+    }
+
+    public function isStudent(): bool
+    {
+        return $this->roles()->where('name', 'student')->exists();
+    }
+
+    public function hasRole($roleName)
+    {
+        return $this->roles()->where('name', $roleName)->exists();
+    }
+
 
     /**
      * The attributes that should be hidden for serialization.
