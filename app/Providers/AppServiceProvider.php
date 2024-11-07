@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\CourseDiscount;
 use App\Models\Lessons;
 use App\Models\User;
+use App\Observers\CourseDiscountObserver;
 use App\Observers\LessonObserver;
 use App\Observers\UserObserver;
 use Illuminate\Auth\Notifications\ResetPassword;
@@ -31,5 +33,13 @@ class AppServiceProvider extends ServiceProvider
         User::observe(UserObserver::class);
 
         Lessons::observe(LessonObserver::class);
+
+        CourseDiscount::observe(CourseDiscountObserver::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                \App\Console\Commands\UpdateDiscountStatus::class,
+            ]);
+        }
     }
 }

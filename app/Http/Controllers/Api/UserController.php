@@ -52,4 +52,19 @@ class UserController extends Controller
 
         return response()->json(['message' => 'Admin created successfully', 'user' => $user], 201);
     }
+
+    public function createRole(Request $request)
+    {
+        $this->authorize('create', User::class);
+
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255'
+        ]);
+
+        $newRole = Role::create([
+            'name' => $validatedData['name'],
+        ]);
+
+        return response()->json(['message' => 'New Role created successfuly.'],201);
+    }
 }

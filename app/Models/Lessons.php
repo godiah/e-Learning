@@ -22,6 +22,11 @@ class Lessons extends Model
         return $this->belongsTo(Courses::class, 'course_id');
     }
 
+    public function progress()
+    {
+        return $this->hasMany(LessonProgress::class,'lesson_id');
+    }
+
     public function quizzes()
     {
         return $this->hasMany(Quiz::class,'lesson_id');
@@ -36,6 +41,8 @@ class Lessons extends Model
     {
         static::created(function ($lesson) {
             $lesson->course->updateVideoLength();
+            $lesson->course->calculateTotalLessons();
+            $lesson->course->calculateTotalContent();
         });
 
         static::updated(function ($lesson) {
@@ -44,6 +51,8 @@ class Lessons extends Model
 
         static::deleted(function ($lesson) {
             $lesson->course->updateVideoLength();
+            $lesson->course->calculateTotalLessons();
+            $lesson->course->calculateTotalContent();
         });
     }
 }

@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Helpers\CacheHelper;
+use App\Traits\HasCourseStatistics;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Courses extends Model
 {
-    use HasFactory;
+    use HasFactory, HasCourseStatistics;
 
     protected $fillable = [
         'instructor_id', 
@@ -25,7 +28,8 @@ class Courses extends Model
         'who_is_for',
         'video_length',
         'video_length_hours',
-        'video_length_minutes'
+        'video_length_minutes',
+        'total_lessons', 'total_quizzes', 'total_assignments', 'total_content', 'duration', 'pass_mark'
     ];
 
     protected $casts = [
@@ -33,6 +37,38 @@ class Courses extends Model
         'who_is_for' => 'array',
         'last_updated' => 'datetime',
     ];
+
+    protected static function booted()
+    {
+        static::created(function ($course) {
+            CacheHelper::clearInstructorCaches($course->instructor_id);
+        });
+
+        static::updated(function ($course) {
+            CacheHelper::clearCourseCaches($course->id);
+            CacheHelper::clearInstructorCaches($course->instructor_id);
+            
+            if ($course->wasChanged('instructor_id')) {
+                CacheHelper::clearInstructorCaches($course->getOriginal('instructor_id'));
+            }
+        });
+
+        static::deleted(function ($course) {
+            CacheHelper::clearCourseCaches($course->id);
+            CacheHelper::clearInstructorCaches($course->instructor_id);
+        });
+    }
+
+    /**
+     * Clear all instructor-related caches
+     */
+    // private static function clearInstructorCaches($instructorId)
+    // {
+    //     Cache::forget("instructor:{$instructorId}:avg_rating");
+    //     Cache::forget("instructor:{$instructorId}:total_reviews");
+    //     Cache::forget("instructor:{$instructorId}:total_enrollments");
+    //     Cache::forget("instructor:{$instructorId}:total_courses");
+    // }
 
     public function instructor()
     {
@@ -59,57 +95,10 @@ class Courses extends Model
         return $this->hasManyThrough(Assignment::class, Lessons::class, 'course_id', 'lesson_id');
     }
 
-    public function getVideoLengthAttribute()
-    {
-        return $this->lessons()->sum('video_duration');
-    }
-
-    public function updateVideoLength()
-    {
-        $totalMinutes = $this->lessons()->sum('video_duration');
-        
-        $hours = floor($totalMinutes / 60);
-        $minutes = $totalMinutes % 60;
-
-        $this->video_length = $totalMinutes;
-        $this->video_length_hours = $hours;
-        $this->video_length_minutes = $minutes;
-        $this->save();
-    }
-
-    public function getFormattedVideoLengthAttribute()
-    {
-        if ($this->video_length_hours > 0) {
-            return "{$this->video_length_hours}h {$this->video_length_minutes}m";
-        } else {
-            return "{$this->video_length_minutes}m";
-        }
-    }
-
-    public function getTotalLessonsAttribute()
-    {
-        return $this->lessons()->count();
-    }
-
-    public function getTotalQuizzesAttribute()
-    {
-        return $this->quizzes()->count();
-    }
-
-    public function getTotalAssignmentsAttribute()
-    {
-        return $this->assignments()->count();
-    }
-
-    public function getTotalContentAttribute()
-    {
-        return $this->totalLessons + $this->totalQuizzes + $this->totalAssignments;
-    }
-
     public function enrollments()
     {
         return $this->hasMany(Enrollment::class, 'course_id');
-    }    
+    }   
 
     public function reviews()
     {
@@ -118,8 +107,43 @@ class Courses extends Model
 
     public function discussion()
     {
-        return $this->hasMany(Discussion::class);
+        return $this->hasMany(Discussion::class, 'course_id');
     }
 
+    public function certificates()
+    {
+        return $this->hasMany(Certificate::class);
+    }
+
+    public function discounts()
+    {
+        return $this->hasMany(CourseDiscount::class,'course_id');
+    }
+
+    public function activeDiscount()
+    {
+        $now = now()->startOfDay();
     
+        return $this->discounts()
+            ->where('is_active', true)
+            ->where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->latest()
+            ->first();
+    }
+    public function validDiscount()
+{
+    return $this->hasOne(CourseDiscount::class, 'course_id');
+
+}
+
+    public function carts()
+    {
+        return $this->hasMany(CartItem::class);
+    }
+
+    public function wishlists()
+    {
+        return $this->hasMany(Wishlist::class);
+    }    
 }

@@ -11,14 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('user_assignments', function (Blueprint $table) {
+        Schema::create('carts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('assignment_id')->constrained('assignments')->onDelete('cascade');
-            $table->text('submission')->nullable();
-            $table->timestamp('submitted_at')->nullable();
-            $table->text('grade')->nullable();
-            $table->text('feedback')->nullable();
+            $table->decimal('total_amount', 10, 2);
+            $table->decimal('discount_total', 10, 2);
+            $table->decimal('final_amount', 10, 2);
+            $table->string('status')->default('active');
             $table->timestamps();
         });
     }
@@ -28,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('user_assignments');
+        Schema::dropIfExists('carts');
     }
 };

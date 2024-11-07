@@ -2,12 +2,16 @@
 
 namespace App\Http\Resources;
 
+use App\Traits\HasCourseStatistics;
+use App\Traits\HasInstructorStatistics;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class CoursesResource extends JsonResource
 {
+    use HasInstructorStatistics, HasCourseStatistics;
     /**
      * Transform the resource into an array.
      *
@@ -16,6 +20,9 @@ class CoursesResource extends JsonResource
     public function toArray(Request $request): array
     {
         $instructor = $this->instructor;
+        $stats = $this->getCachedInstructorStatistics($instructor);
+        $courseStats = $this->getCachedCourseStatistics();
+
         return [
             'id' => $this->id,
             'instructor_id' => $this->instructor_id,
@@ -23,10 +30,10 @@ class CoursesResource extends JsonResource
                 'name' => $instructor->name,
                 'profile_pic' => $instructor->profile_pic,
                 'bio' => $instructor->bio,
-                'total_courses' => $instructor->courses()->count(),
-                'average_rating' => $this->getInstructorAverageRating($instructor->id),
-                'total_reviews' => $this->getInstructorTotalReviews($instructor->id),
-                'Students' => $this->getInstructorTotalEnrollments($instructor->id),
+                'total_courses' => $stats['courses'],
+                'average_rating' => $stats['rating'],
+                'total_reviews' => $stats['reviews'],
+                'Students' => $stats['enrollments'],
             ],
             'category_id' => $this->category_id,
             'category_name' => $this->category->name,
@@ -40,42 +47,18 @@ class CoursesResource extends JsonResource
             'objectives' => $this->objectives,
             'requirements' => $this->requirements,
             'who_is_for' => $this->who_is_for,
-            'video_length' => $this->video_length,
-            'video_length_formatted' => $this->formattedVideoLength,
-            'total_lessons' => $this->totalLessons,
-            'total_quizzes' => $this->totalQuizzes,
-            'total_assignments' => $this->totalAssignments,
-            'total_content' => $this->totalContent,
-            'average_rating' => $this->reviews()->avg('rating') ?? 0,
-            'total_ratings' => $this->reviews()->count(),
-            'total_enrollments' => $this->enrollments()->count(),
+            'video_length' => $courseStats['video_length'],
+            'video_length_formatted' => $courseStats['formatted_video_length'],
+            'total_lessons' => $courseStats['total_lessons'],
+            'total_quizzes' => $courseStats['total_quizzes'],
+            'total_assignments' => $courseStats['total_assignments'],
+            'total_content' => $courseStats['total_content'],
+            'average_rating' => $courseStats['average_rating'],
+            'total_ratings' => $courseStats['total_reviews'],
+            'total_enrollments' => $courseStats['total_enrollments'],
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'last_updated' => $this->last_updated,
         ];
-    }
-
-    private function getInstructorAverageRating($instructorId)
-    {
-        return DB::table('courses')
-            ->join('reviews', 'courses.id', '=', 'reviews.course_id')
-            ->where('courses.instructor_id', $instructorId)
-            ->avg('reviews.rating') ?? 0;
-    }
-
-    private function getInstructorTotalReviews($instructorId)
-    {
-        return DB::table('courses')
-            ->join('reviews', 'courses.id', '=', 'reviews.course_id')
-            ->where('courses.instructor_id', $instructorId)
-            ->count();
-    }
-
-    private function getInstructorTotalEnrollments($instructorId)
-    {
-        return DB::table('courses')
-            ->join('enrollments', 'courses.id', '=', 'enrollments.course_id')
-            ->where('courses.instructor_id', $instructorId)
-            ->count();
     }
 }

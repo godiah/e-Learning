@@ -17,8 +17,14 @@ class EnrollmentResource extends JsonResource
         //return parent::toArray($request);
         return [
             'id' => $this->id,
-            'user_id' => $this->user_id,
-            'course_id' => $this->course_id,
+            'course' => [
+                'id' => $this->course->id,
+                'name' => $this->course->title,                
+            ],
+            'user' => [
+                'id' => $this->user->id,
+                'name' => $this->user->name,                
+            ],
             'enrollment_date' => $this->enrollment_date,
             'completion_date' => $this->completion_date,            
             'created_at' => $this->created_at,

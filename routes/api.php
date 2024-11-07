@@ -1,22 +1,27 @@
 <?php
 
+use App\Http\Controllers\Api\AffiliateController;
 use App\Http\Controllers\Api\AssignmentController;
 use App\Http\Controllers\Api\AssignmentSubmissionController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoriesController;
+use App\Http\Controllers\Api\CertificateController;
 use App\Http\Controllers\Api\CourseController;
+use App\Http\Controllers\Api\CourseDiscountController;
+use App\Http\Controllers\Api\CourseProgressController;
 use App\Http\Controllers\Api\DiscussionController;
 use App\Http\Controllers\Api\DiscussionReplyController;
 use App\Http\Controllers\Api\EnrollmentController;
 use App\Http\Controllers\Api\InstructorController;
 use App\Http\Controllers\Api\InstructorCourseController;
+use App\Http\Controllers\Api\LessonProgressController;
 use App\Http\Controllers\Api\LessonsController;
 use App\Http\Controllers\Api\QuizAnswerController;
-use App\Http\Controllers\Api\QuizAttemptController as ApiQuizAttemptController;
+use App\Http\Controllers\Api\QuizAttemptController;
 use App\Http\Controllers\Api\QuizController;
 use App\Http\Controllers\Api\QuizQuestionController;
 use App\Http\Controllers\Api\ReviewController;
-use App\Http\Controllers\Api\UserAssignmentController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserQuizAttemptController;
 use App\Http\Middleware\AdminMiddleware;
@@ -53,8 +58,18 @@ Route::middleware(['auth:sanctum'])->group(function(){
         Route::post('/instructor-applications/{application}/approve', [InstructorController::class, 'approve']);
         Route::post('/instructor-applications/{application}/reject', [InstructorController::class, 'reject']);
 
+        Route::get('/affiliate-applications', [AffiliateController::class, 'index']);
+        Route::post('/affiliates/{affiliate}/approve', [AffiliateController::class, 'approve']);
+        Route::post('/affiliates/{affiliate}/reject', [AffiliateController::class, 'reject']);
+        Route::post('/affiliates/{affiliate}/suspend', [AffiliateController::class, 'suspend']);
+        Route::get('/affiliates-suspended', [AffiliateController::class, 'viewSuspended']);
+        Route::post('/affiliate/{affiliate}/lift-suspension', [AffiliateController::class, 'liftSuspension']);        
+
+        //Route::post('/affiliate/purchases/{id}/process-payment', [AffiliatePurchaseController::class, 'processPayment']);
+
         Route::post('/admin/create', [UserController::class, 'createAdmin']);
         Route::post('/users/{user}/assign-role', [UserController::class, 'assignRole']);
+        Route::post('/admin/new-role', [UserController::class, 'createRole']);
         Route::get('/users/{user}/roles', [UserController::class, 'getUserRoles']);
 
         Route::apiResource('categories', CategoriesController::class);
@@ -83,10 +98,20 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::post('/courses/{course}/lessons/{lesson}', [LessonsController::class, 'update']);
     Route::delete('/courses/{course}/lessons/{lesson}', [LessonsController::class, 'destroy']);
 
+    Route::get('/courses/{course}/completion-status', [CourseProgressController::class, 'show']);
+    Route::get('/courses/{course}/progress/reset', [CourseProgressController::class, 'reset']);
+
+    Route::post('/courses/{course}/certificate', [CertificateController::class, 'generate']);
+    Route::get('/certificates/verify/{number}', [CertificateController::class, 'verify'])->name('certificates.verify');
+
+    Route::get('lessons/{lesson}/progress', [LessonProgressController::class, 'show']);
+    Route::patch('lessons/{lesson}/progress', [LessonProgressController::class, 'update']);
+    Route::get('courses/{course}/progress', [LessonProgressController::class, 'getCourseProgress']);
+
     Route::get('/lessons/{lesson}/quiz', [QuizController::class, 'index']);
     Route::get('/lessons/{lesson}/quiz/{quiz}', [QuizController::class, 'show']);
     Route::post('/lessons/{lesson}/quiz', [QuizController::class, 'store']);
-    Route::put('/lessons/{lesson}/quiz/{quiz}', [QuizController::class, 'update']);
+    Route::patch('/lessons/{lesson}/quiz/{quiz}', [QuizController::class, 'update']);
     Route::delete('/lessons/{lesson}/quiz/{quiz}', [QuizController::class, 'destroy']);
 
     Route::get('/quiz/{quiz}/questions', [QuizQuestionController::class, 'index']);
@@ -104,35 +129,53 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::post('assignments/{assignment}/submit', [AssignmentSubmissionController::class, 'submit']);
     Route::patch('assignments/{assignment}/submissions/{submission}/allow-resubmission', [AssignmentSubmissionController::class, 'allowResubmission']);
     Route::patch('assignment-submissions/{submission}/grade',[AssignmentSubmissionController::class, 'grade']);
+    Route::get('courses/{course}/assignments/{assignment}/submission', [AssignmentSubmissionController::class, 'viewSubmission']);
 
-    
+    Route::post('/courses/{course}/enroll', [EnrollmentController::class, 'enroll']);
+    Route::delete('/enrollments/{enrollment}', [EnrollmentController::class, 'withdraw']);
+    Route::get('/courses/{course}/enrollments', [EnrollmentController::class, 'getCourseEnrollments']);
+    Route::get('/user/my-enrollments', [EnrollmentController::class, 'getStudentEnrollments']);
+    Route::patch('/my-enrollments/{enrollment}/complete', [EnrollmentController::class, 'markAsCompleted']);
 
-    
-    Route::apiResource('enrollment', EnrollmentController::class);
+    Route::post('/quizzes/{quiz}/start', [QuizAttemptController::class, 'start']);
+    Route::post('/quiz-attempts/{attempt}/submit', [QuizAttemptController::class, 'submit']);
+    Route::get('/quizzes/{quiz}/results', [QuizAttemptController::class, 'results']);
+    Route::delete('/quiz/{attempt}/delete', [QuizAttemptController::class, 'destroy']);    
 
-    Route::apiResource('attempt', ApiQuizAttemptController::class);
-    Route::apiResource('userattempts', UserQuizAttemptController::class);
-    Route::apiResource('assignments', AssignmentController::class);
-    //Route::apiResource('user-assignments', UserAssignmentController::class);
-
-    Route::get('/calculate-score/{quizId}/{userId}', [UserQuizAttemptController::class, 'calculateScore']);
-    Route::post('/quiz/calculate-score', [UserQuizAttemptController::class, 'calculateScore']);
-    Route::delete('/delete-answers', [UserQuizAttemptController::class, 'deleteUserAnswers']);
-
-    Route::get('/courses/{courseId}/reviews', [ReviewController::class, 'index']);
-    Route::post('/reviews', [ReviewController::class, 'store']);
+    Route::get('/courses/{course}/reviews', [ReviewController::class, 'index']);
+    Route::post('/courses/{course}/reviews', [ReviewController::class, 'store']);
     Route::put('/reviews/{review}', [ReviewController::class, 'update']);
     Route::delete('/reviews/{review}', [ReviewController::class, 'destroy']);
 
-    Route::get('/courses/{courseId}/discussions', [DiscussionController::class, 'index']);
-    Route::post('/discussions', [DiscussionController::class, 'store']);
+    Route::get('/courses/{course}/discussions', [DiscussionController::class, 'index']);
+    Route::get('/courses/{course}/discussions/{discussion}', [DiscussionController::class, 'show']);
+    Route::post('/courses/{course}/discussions', [DiscussionController::class, 'store']);
     Route::put('/discussions/{discussion}', [DiscussionController::class, 'update']);
     Route::delete('/discussions/{discussion}', [DiscussionController::class, 'destroy']);
 
-    Route::get('/discussions/{discussionId}/replies', [DiscussionReplyController::class, 'index']);
-    Route::post('/replies', [DiscussionReplyController::class, 'store']);
-    Route::put('/replies/{discussionReply}', [DiscussionReplyController::class, 'update']);
+    Route::get('/discussions/{discussion}/replies', [DiscussionReplyController::class, 'index']);
+    Route::post('/discussions/{discussion}/replies', [DiscussionReplyController::class, 'store']);
+    Route::patch('/replies/{discussionReply}', [DiscussionReplyController::class, 'update']);
     Route::delete('/replies/{discussionReply}', [DiscussionReplyController::class, 'destroy']);
+
+    Route::post('/affiliates/apply', [AffiliateController::class, 'affiliateApplication']);
+    Route::get('/affiliates/{affiliate}/stats', [AffiliateController::class, 'stats']);
+
+    Route::get('courses/{course}/discounts', [CourseDiscountController::class, 'index']);
+    Route::get('discounts/{discount}', [CourseDiscountController::class, 'show']);
+    Route::post('courses/{course}/discounts', [CourseDiscountController::class, 'store']);
+    Route::patch('discounts/{discount}', [CourseDiscountController::class, 'update']);
+    Route::delete('discounts/{discount}', [CourseDiscountController::class, 'destroy']);
+
+    Route::prefix('cart')->group(function () {
+        Route::get('/', [CartController::class, 'viewCart']);
+        Route::post('/add', [CartController::class, 'addToCart']);
+        Route::post('/checkout', [CartController::class, 'checkout']);
+        Route::delete('/items/{cartItemId}', [CartController::class, 'removeFromCart']);
+    });
+
+    //Route::post('/affiliate/purchases/track', [AffiliatePurchaseController::class, 'track']);
+    
 
 });
 

@@ -23,7 +23,8 @@ class DiscussionReplyResource extends JsonResource
             ],
             'discussion_id' => $this->discussion_id,
             'content' => $this->content,
-            'created_at' => $this->created_at,
+            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at->format('Y-m-d H:i:s'),
         ];
     }
 }

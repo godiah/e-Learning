@@ -11,6 +11,20 @@ class Discussion extends Model
 
     protected $fillable = ['course_id', 'user_id', 'title', 'content'];
 
+    protected $with = ['user']; // Always load user relationship
+
+    protected static function boot()
+    {
+        parent::boot();
+        
+        // Auto-set user_id when creating
+        static::creating(function ($discussion) {
+            $user = request()->user();
+            $discussion->user_id = $user->id;
+            //$discussion->user_id = auth()->user()?->id;
+        });
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

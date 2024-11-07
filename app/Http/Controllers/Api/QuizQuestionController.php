@@ -81,6 +81,8 @@ class QuizQuestionController extends Controller
                     }
                 },
             ],
+            'weight' => 'required|integer|min:1',
+            'type' => 'required|string',
 
             'answers' => 'required|array|min:1',
             'answers.*.answer' => 'required|string|max:255',
@@ -106,6 +108,8 @@ class QuizQuestionController extends Controller
             $result = DB::transaction(function () use ($request, $quiz) {
                 $question = $quiz->questions()->create([
                     'question' => $request->question,
+                    'weight' => $request->weight,
+                    'type' => $request->type,
                 ]);
 
                 // Create answers
@@ -134,7 +138,6 @@ class QuizQuestionController extends Controller
         }
     }
 
-    //Update a question
     public function update(Request $request, Quiz $quiz, QuizQuestion $question)
     {
         try {
@@ -142,8 +145,9 @@ class QuizQuestionController extends Controller
         } catch (AuthorizationException $e) {
             return response()->json(['message' => 'Unauthorized access!'], 403);
         }        
-
-        $validator = Validator::make($request->all(),[  
+    
+        // Define validation rules
+        $validator = Validator::make($request->all(), [  
             'question' => [
                 'string',
                 'sometimes',
@@ -152,81 +156,104 @@ class QuizQuestionController extends Controller
                         ->where('question', $value)
                         ->where('id', '!=', $question->id) 
                         ->exists();
-
+                
                     if ($exists) {
                         $fail("The question already exists!");
                     }
                 },
             ],
-            'answers' => 'required|array|min:1',
+            'weight' => 'sometimes|integer|min:1',
+            'type' => 'sometimes|string|in:multiple_choice,true_false,short_answer', // Restrict type if needed
+        
+            // Make answers optional for update
+            'answers' => 'sometimes|array|min:1',
             'answers.*.id' => 'sometimes|exists:quiz_answers,id',
             'answers.*.answer' => 'required|string|max:255',
             'answers.*.is_correct' => 'required|boolean',                  
         ]);
         
-        if($validator->fails())
-        {
+        if ($validator->fails()) {
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $validator->messages(),
             ], 422);
         }
-
-        $hasCorrectAnswer = collect($request->answers)->contains('is_correct', true);
-        if (!$hasCorrectAnswer) {
+    
+        // Check for at least one correct answer if answers are provided
+        if ($request->has('answers') && !collect($request->answers)->contains('is_correct', true)) {
             return response()->json([
                 'message' => 'At least one answer must be marked as correct',
             ], 422);
         }
-
+    
         try {
+            // Start a database transaction
             $result = DB::transaction(function () use ($request, $question) {
-                // Update question
-                $question->update([
-                    'question' => $request->question,
-                ]);
-
-                // Get existing answer IDs
-                $existingAnswerIds = $question->answers->pluck('id')->toArray();
-                $updatedAnswerIds = [];
-
-                // Update or create answers
-                foreach ($request->answers as $answerData) {
-                    if (isset($answerData['id'])) {
-                        // Update existing answer
-                        $answer = QuizAnswer::find($answerData['id']);
-                        if ($answer) {
-                            $answer->update([
+                // Build an array of fields to update
+                $dataToUpdate = [];
+            
+                if ($request->has('question')) {
+                    $dataToUpdate['question'] = $request->question;
+                }
+            
+                if ($request->has('weight')) {
+                    $dataToUpdate['weight'] = $request->weight;
+                }
+            
+                if ($request->has('type')) {
+                    $dataToUpdate['type'] = $request->type;
+                }
+            
+                // Update question with provided fields
+                if (!empty($dataToUpdate)) {
+                    $question->update($dataToUpdate);
+                }
+            
+                // Proceed with answers only if they are provided
+                if ($request->has('answers')) {
+                    // Get existing answer IDs
+                    $existingAnswerIds = $question->answers->pluck('id')->toArray();
+                    $updatedAnswerIds = [];
+                
+                    // Update or create answers
+                    foreach ($request->answers as $answerData) {
+                        if (isset($answerData['id'])) {
+                            // Update existing answer
+                            $answer = QuizAnswer::find($answerData['id']);
+                            if ($answer) {
+                                $answer->update([
+                                    'answer' => $answerData['answer'],
+                                    'is_correct' => $answerData['is_correct'],
+                                ]);
+                                $updatedAnswerIds[] = $answer->id;
+                            }
+                        } else {
+                            // Create new answer
+                            $answer = $question->answers()->create([
                                 'answer' => $answerData['answer'],
                                 'is_correct' => $answerData['is_correct'],
                             ]);
                             $updatedAnswerIds[] = $answer->id;
                         }
-                    } else {
-                        // Create new answer
-                        $answer = $question->answers()->create([
-                            'answer' => $answerData['answer'],
-                            'is_correct' => $answerData['is_correct'],
-                        ]);
-                        $updatedAnswerIds[] = $answer->id;
                     }
+                
+                    // Delete answers that weren't updated or created
+                    $answersToDelete = array_diff($existingAnswerIds, $updatedAnswerIds);
+                    QuizAnswer::whereIn('id', $answersToDelete)->delete();
                 }
-
-                // Delete answers that weren't updated or created
-                $answersToDelete = array_diff($existingAnswerIds, $updatedAnswerIds);
-                QuizAnswer::whereIn('id', $answersToDelete)->delete();
-
+            
                 return $question;
             });
-
+        
+            // Load the updated answers
             $result->load('answers');
-
+        
             return response()->json([
                 'message' => 'Question and answers updated successfully',
                 'data' => new QuizQuestionResource($result)
             ]);
-
-        }catch (\Exception $e) {
+        
+        } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to update question and answers',
                 'error' => $e->getMessage()

@@ -4,113 +4,138 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EnrollmentResource;
+use App\Models\AssignmentSubmission;
+use App\Models\Courses;
 use App\Models\Enrollment;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 class EnrollmentController extends Controller
 {
-    //Display all enrolled students
-    public function index()
+    use AuthorizesRequests;
+
+    // Enroll a student in a course
+    public function enroll(Courses $course)
     {
-        $enrollment = Enrollment::get();
-        if($enrollment->count() > 0)
-        {
-            return EnrollmentResource::collection($enrollment);
-        }
-        else
-        {
-            return response()->json(['message' => 'No students currently enrolled found'], 404);
-        }
-    }
+        $user = request()->user();
 
-    //Add enrollment
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(),[
-            'user_id' => 'required|exists:users,id', // Ensure the user exists
-            'course_id' => 'required|exists:courses,id', // Ensure the course exists
-            'enrollment_date' => 'nullable|date',
-            'completion_date' => 'nullable|date',
+        $existingEnrollment = Enrollment::where('user_id', $user->id)
+            ->where('course_id', $course->id)
+            ->first();
 
-            'user_id' => [
-                'required',
-                'exists:users,id',
-                function ($attribute, $value, $fail) use ($request) {
-                    if (Enrollment::where('user_id', $value)
-                        ->where('course_id', $request->input('course_id'))
-                        ->exists()) {
-                        $fail('The user is already enrolled in this course.');
-                    }
-                },
-            ]            
-        ]);
-
-        if($validator->fails())
-        {
+        if ($existingEnrollment) {
             return response()->json([
-                'message' => 'All Fields are mandatory',
-                'error' => $validator->messages(),
-            ], 422);
+                'message' => 'You are already enrolled in this course'
+            ]);
         }
 
-        // Create a new enrollment
         $enrollment = Enrollment::create([
-            'user_id' => $request->user_id,
-            'course_id' => $request->course_id,
-            'enrollment_date' => $request->enrollment_date,
-            'completion_date' => $request->completion_date
+            'user_id' => $user->id,
+            'course_id' => $course->id,
+            'enrollment_date' => now(),
         ]);
 
-        // Return a response with the created enrollment
         return response()->json([
-            'message' => 'You have enrolled successfully',
+            'message' => 'You have been enrolled in this course',
             'data' => new EnrollmentResource($enrollment)
-        ]);
+        ]);        
     }
 
-    //Display an enrollment(s)
-    public function show(Enrollment $enrollment)
+    // Withdraw from a course
+    public function withdraw(Enrollment $enrollment)
     {
-        return new EnrollmentResource($enrollment);
-    }
-
-    //Update an enrollment
-    public function update(Request $request, Enrollment $enrollment)
-    {
-        $validator = Validator::make($request->all(),[
-            'user_id' => 'exists:users,id', // Ensure the user exists
-            'course_id' => 'exists:courses,id', // Ensure the course exists
-            'enrollment_date' => 'nullable|date',
-            'completion_date' => 'nullable|date',
-        ]);
-
-        if($validator->fails())
-        {
-            return response()->json([
-                'error' => $validator->messages(),
-            ], 422);
+        try {
+            $this->authorize('delete', $enrollment);
+        } catch (AuthorizationException $e) {
+            return response()->json(['message' => 'Unauthorised Action'], 403);
         }
+        
+        $submissions = AssignmentSubmission::where('user_id', $enrollment->user_id)
+                                       ->whereHas('assignment.lesson', function ($query) use ($enrollment) {
+                                           $query->where('course_id', $enrollment->course_id);
+                                       })
+                                       ->get();
+
+        // Delete each submission and any associated files
+        foreach ($submissions as $submission) {
+            if ($submission->submission_file_path) {
+                Storage::disk('public')->delete($submission->submission_file_path);
+            }
+            $submission->delete();
+        }
+
+        $enrollment->delete();
+
+        return response()->json([
+            'message' => 'Successfully withdrawn from the course'
+        ]);
+    }
+
+    // Get all enrollments for a given course
+    public function getCourseEnrollments(Request $request, Courses $course)
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user->is_admin && $user->id !== $course->instructor_id) {
+                return response()->json(['message' => 'Unauthorized access.'], 403);
+            }
+
+            $enrollments = Enrollment::where('course_id', $course->id)
+                ->with(['user', 'course'])
+                ->paginate(15);
+
+            if ($enrollments->isEmpty()) {
+                return response()->json(['message' => 'No enrollments found for this course.']);
+            }
+
+            return response()->json([
+                'message' => 'Enrollments retrieved successfully',
+                'data' => EnrollmentResource::collection($enrollments)
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'An error occurred while fetching enrollments.'], 500);
+        }
+    }
+
+    // Get all enrollments for a student
+    public function getStudentEnrollments(Request $request)
+    {
+        $userId = $request->user()->id;
+
+        $enrollments = Enrollment::where('user_id', $userId)
+            ->with('course')
+            ->paginate(10);
+
+        if ($enrollments->isEmpty()) {
+            return response()->json(['message' => 'No course enrollments found for this user.']);
+        }
+
+        return response()->json([
+            'message' => 'User enrollments retrieved successfully',
+            'data' => EnrollmentResource::collection($enrollments)
+        ]);
+    }
+
+    // Mark a course as completed
+    public function markAsCompleted(Enrollment $enrollment)
+    {
+        try {
+            $this->authorize('update', $enrollment);
+        } catch (AuthorizationException $e) {
+            return response()->json(['message' => 'Unauthorised Action'], 403);
+        }      
 
         $enrollment->update([
-            'user_id' => $request->user_id,
-            'course_id' => $request->course_id,
-            'enrollment_date' => $request->enrollment_date,
-            'completion_date' => $request->completion_date,
+            'completion_date' => now()
         ]);
 
         return response()->json([
-            'message' => 'Enrollment updated successfully',
+            'message' => 'Enrollment marked as completed successfully',
             'data' => new EnrollmentResource($enrollment)
-        ]);
-    }
-
-    //Delete an Enrollment(s)
-    public function destroy(Enrollment $enrollment)
-    {
-        $enrollment->delete();
-        return response()->json([
-            'message' => 'Enrollment deleted successfully'
         ]);
     }
 }

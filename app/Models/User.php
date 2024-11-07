@@ -27,6 +27,7 @@ class User extends Authenticatable
         'failed_login_attempts',
         'locked_until',
         'is_instructor',
+        'is_affiliate'
     ];
 
     public function courses()
@@ -37,6 +38,11 @@ class User extends Authenticatable
     public function enrollments()
     {
         return $this->hasMany(Enrollment::class);
+    }
+
+    public function lessonProgress()
+    {
+        return $this->hasMany(LessonProgress::class);
     }
 
     public function reviews()
@@ -59,6 +65,11 @@ class User extends Authenticatable
         return $this->hasOne(InstructorApplication::class);
     }
 
+    public function affiliateApplication()
+    {
+        return $this->hasOne(Affiliate::class);
+    }
+
     public function roles()
     {
         return $this->belongsToMany(Role::class, 'user_role');
@@ -79,9 +90,29 @@ class User extends Authenticatable
         return $this->roles()->where('name', 'student')->exists();
     }
 
+    public function isAffiliate(): bool
+    {
+        return $this->roles()->where('name', 'affiliate')->exists();
+    }
+
     public function hasRole($roleName)
     {
         return $this->roles()->where('name', $roleName)->exists();
+    }
+
+    public function carts()
+    {
+        return $this->hasMany(Cart::class);
+    }
+
+    public function wishlists()
+    {
+        return $this->hasMany(Wishlist::class);
+    }
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
     }
 
 

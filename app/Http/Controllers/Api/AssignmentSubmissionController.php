@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AssignmentSubmissionResource;
+use App\Http\Resources\CourseProgressResource;
 use App\Models\Assignment;
 use App\Models\AssignmentSubmission;
+use App\Models\Courses;
+use App\Models\Enrollment;
+use App\Services\CourseProgressService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
@@ -29,6 +33,16 @@ class AssignmentSubmissionController extends Controller
                 'message' => 'Validation error',
                 'errors' => $validator->messages(),
             ], 422);
+        }
+
+        // Check if user is enrolled in the course associated with the assignment
+        $courseId = $assignment->lesson->course_id;
+        $isEnrolled = Enrollment::where('course_id', $courseId)
+                                ->where('user_id', $request->user()->id)
+                                ->exists();
+
+        if (!$isEnrolled) {
+            return response()->json(['message' => 'You must be enrolled in the course to submit this assignment'], 403);
         }
 
         $existingSubmission = AssignmentSubmission::where('assignment_id', $assignment->id)
@@ -64,10 +78,22 @@ class AssignmentSubmissionController extends Controller
             $existingSubmission = AssignmentSubmission::create($submissionData);
         }
 
+        if ($existingSubmission) {
+        $course = $assignment->lesson->course;
+        $existingSubmission->progress_status = $existingSubmission->grade >= $course->pass_mark ? 'passed' : 'failed';
+        $existingSubmission->save();
+
+        // Calculate course progress
+        $progressService = new CourseProgressService();
+        $progress = $progressService->calculateProgress($course->id, $request->user()->id);
+
         return response()->json([
-            'message' => 'Assignment submitted successfully', 
+            'message' => 'Assignment submitted successfully',
             'data' => new AssignmentSubmissionResource($existingSubmission),
+            'progress_status' => $existingSubmission->progress_status,
+            'course_progress' => new CourseProgressResource($progress)
         ]);
+    }
     }
 
     // Allow resubmission (INSTRUCTOR ONLY)
@@ -126,4 +152,33 @@ class AssignmentSubmissionController extends Controller
             'data' => new AssignmentSubmissionResource($submission)
         ]);
     }
+
+    // View assignment submission for given course
+    public function viewSubmission(Request $request, Courses $course, Assignment $assignment)
+    {
+        $user = $request->user();
+
+        $enrollment = Enrollment::where('course_id', $course->id)
+                                ->where('user_id', $user->id)
+                                ->first();
+
+        if (!$enrollment) {
+            return response()->json(['message' => 'You are not enrolled in this course'], 403);
+        }
+
+        // Fetch the assignment submission for the given assignment and student
+        $submission = AssignmentSubmission::where('assignment_id', $assignment->id)
+                                          ->where('user_id', $user->id)
+                                          ->first();
+
+        if (!$submission) {
+            return response()->json(['message' => 'No submission found for this assignment'], 404);
+        }
+
+        return response()->json([
+            'message' => 'Assignment submission retrieved successfully',
+            'data' => new AssignmentSubmissionResource($submission),
+        ]);
+    }
+
 }

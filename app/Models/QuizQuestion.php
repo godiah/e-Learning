@@ -9,7 +9,11 @@ class QuizQuestion extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['quiz_id', 'question'];
+    protected $fillable = ['quiz_id', 'question','weight','type'];
+
+    protected $casts = [
+        'weight' => 'float'
+    ];
 
     public function quiz()
     {

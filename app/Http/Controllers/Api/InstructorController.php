@@ -45,8 +45,8 @@ class InstructorController extends Controller
         // Store profile picture if provided
         $validatedData = $validator->validated();
         if ($request->hasFile('profile_pic')) {
-            $path = $request->file('profile_pic')->store('profile_pics', 'public');
-            $validatedData['profile_pic_url'] = asset('storage/' . $path);
+            $path = $request->file('profile_pic')->store('profile-pictures', 'public');
+            $validatedData['profile_pic_url'] = $path;
         }
 
         // Create the instructor application with the validated data

@@ -61,7 +61,10 @@ class QuizController extends Controller
                 Rule::unique('quizzes')->where(function ($query) use ($lesson) {
                     return $query->where('lesson_id', $lesson->id);
                 }),
-            ],                 
+            ],
+            'time_limit' => 'required|integer|min:1',
+            'max_attempts' => 'required|integer|min:1',
+            'instructions' => 'nullable|string'                 
         ]);
         
         if($validator->fails())
@@ -75,6 +78,9 @@ class QuizController extends Controller
 
         $quiz = $lesson->quizzes()->create([
             'title' => $request->title,
+            'time_limit' => $request->time_limit,
+            'max_attempts' => $request->max_attempts,
+            'instructions' => $request->instructions,
             'instructor_id' => $user->id,
         ]);
 
@@ -110,12 +116,16 @@ class QuizController extends Controller
         $validator = Validator::make($request->all(),[ 
             'title' => [
                 'string',
+                'sometimes',
                 'max:255',
                 Rule::unique('quizzes')->where(function ($query) use ($lesson, $quiz) {
                     return $query->where('lesson_id', $lesson->id)
                                 ->where('id', '!=', $quiz->id);
                 }),
-            ],                  
+            ],
+            'time_limit' => 'sometimes|integer|min:1',
+            'max_attempts' => 'sometimes|integer|min:1',
+            'instructions' => 'sometimes|nullable|string'                 
         ]);
         
         if($validator->fails())
@@ -126,9 +136,25 @@ class QuizController extends Controller
             ], 422);
         }
 
-        $quiz ->update([
-            'title' => $request->title,
-        ]);
+        $dataToUpdate = [];
+
+        if ($request->has('title')) {
+            $dataToUpdate['title'] = $request->title;
+        }
+
+        if ($request->has('time_limit')) {
+            $dataToUpdate['time_limit'] = $request->time_limit;
+        }
+
+        if ($request->has('max_attempts')) {
+            $dataToUpdate['max_attempts'] = $request->max_attempts;
+        }
+
+        if ($request->has('instructions')) {
+            $dataToUpdate['instructions'] = $request->instructions;
+        }
+
+        $quiz->update($dataToUpdate);
 
         return response()->json([
             'message' => 'Quiz updated successfully',

@@ -21,6 +21,8 @@ class QuizQuestionResource extends JsonResource
             'id' => $this->id,
             'quiz_id' => $this->quiz_id,
             'question' => $this->question,
+            'weight' => $this->weight,
+            'type' => $this->type,
             'created_at' => $this->created_at,
         ];
 

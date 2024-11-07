@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Helpers\CacheHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Enrollment extends Model
 {
@@ -12,6 +14,17 @@ class Enrollment extends Model
     protected $fillable = [
         'user_id', 'course_id', 'enrollment_date', 'completion_date'
     ];
+
+    protected static function booted()
+    {
+        static::created(function ($enrollment) {
+            CacheHelper::clearEnrollmentRelatedCaches($enrollment);
+        });
+
+        static::deleted(function ($enrollment) {
+            CacheHelper::clearEnrollmentRelatedCaches($enrollment);
+        });
+    }
 
     public function user()
     {

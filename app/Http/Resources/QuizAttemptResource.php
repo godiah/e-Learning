@@ -14,16 +14,16 @@ class QuizAttemptResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        //return parent::toArray($request);
         return [
             'id' => $this->id,
-            'user_id' => $this->user_id,
-            'quiz_id' => $this->quiz_id,            
-            'attempt_number' => $this->attempt_number,            
-            'start_time' => $this->start_time,            
-            'end_time' => $this->end_time,           
-            'score' => $this->score,           
-            'created_at' => $this->created_at,
+            'quiz_id' => $this->quiz_id,
+            'start_time' => $this->start_time,
+            'end_time' => $this->end_time,
+            'score' => $this->score,
+            'status' => $this->status,
+            'remaining_time' => $this->remaining_time, // Using the dynamic accessor
+            'attempt_number' => $this->attempt_number,
+            'responses' => QuizResponseResource::collection($this->whenLoaded('responses')),
         ];
     }
 }
