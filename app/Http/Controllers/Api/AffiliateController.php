@@ -211,7 +211,7 @@ class AffiliateController extends Controller
 
     // Affiliate Statistics
     public function stats(Affiliate $affiliate)
-        {
+    {
         $user = request()->user();
         if ($user->id !== $affiliate->user_id && !$user->hasRole('admin')) {
             return response()->json([
@@ -238,9 +238,19 @@ class AffiliateController extends Controller
     }
 
     // Adjust Affiliate Commision Rates
-    public function commissionRates(Affiliate $affiliate)
+    public function updateCommissionRate(Request $request, $id)
     {
-        
+        $validated = $request->validate([
+            'commission_rate' => 'required|numeric|min:1|max:100',
+        ]);
+
+        $affiliate = Affiliate::findOrFail($id);
+        $affiliate->update(['commission_rate' => $validated['commission_rate']]);
+
+        return response()->json([
+            'message' => 'Commission rate updated successfully',
+            'commission_rate' => $affiliate->commission_rate
+        ]);
     }
 
 }

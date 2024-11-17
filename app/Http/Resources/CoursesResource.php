@@ -56,9 +56,9 @@ class CoursesResource extends JsonResource
             'average_rating' => $courseStats['average_rating'],
             'total_ratings' => $courseStats['total_reviews'],
             'total_enrollments' => $courseStats['total_enrollments'],
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
-            'last_updated' => $this->last_updated,
+            'created_at' => $this->created_at->diffForHumans(),
+            'updated_at' => $this->updated_at->format('d-m-Y'),
+            'last_updated' => $this->last_updated->format('d-m-Y'),
         ];
     }
 }

@@ -12,23 +12,12 @@ class Courses extends Model
 {
     use HasFactory, HasCourseStatistics;
 
+     protected $table = 'courses';
+
     protected $fillable = [
-        'instructor_id', 
-        'category_id', 
-        'title', 
-        'description', 
-        'detailed_description',
-        'course_image',
-        'price', 
-        'level',
-        'language',
-        'objectives',
-        'num_resources',
-        'requirements',
-        'who_is_for',
-        'video_length',
-        'video_length_hours',
-        'video_length_minutes',
+        'instructor_id', 'category_id', 'title', 'description', 'detailed_description',
+        'course_image', 'price', 'level','language', 'objectives', 'num_resources',
+        'requirements', 'who_is_for', 'video_length', 'video_length_hours', 'video_length_minutes',
         'total_lessons', 'total_quizzes', 'total_assignments', 'total_content', 'duration', 'pass_mark'
     ];
 
@@ -58,17 +47,6 @@ class Courses extends Model
             CacheHelper::clearInstructorCaches($course->instructor_id);
         });
     }
-
-    /**
-     * Clear all instructor-related caches
-     */
-    // private static function clearInstructorCaches($instructorId)
-    // {
-    //     Cache::forget("instructor:{$instructorId}:avg_rating");
-    //     Cache::forget("instructor:{$instructorId}:total_reviews");
-    //     Cache::forget("instructor:{$instructorId}:total_enrollments");
-    //     Cache::forget("instructor:{$instructorId}:total_courses");
-    // }
 
     public function instructor()
     {
@@ -132,10 +110,9 @@ class Courses extends Model
             ->first();
     }
     public function validDiscount()
-{
-    return $this->hasOne(CourseDiscount::class, 'course_id');
-
-}
+    {
+        return $this->hasOne(CourseDiscount::class, 'course_id');    
+    }
 
     public function carts()
     {

@@ -82,15 +82,10 @@ class CourseProgressService
                     ->get()
                     ->sum('quizzes_count');
 
-                $totalAssignments = $course->lessons()
-                    ->withCount('assignments')
-                    ->get()
-                    ->sum('assignments_count');
+                
 
-                $totalItemsCount = $totalQuizzes + $totalAssignments;
-
-                // If course has no content, return early
-                if ($totalItemsCount === 0) {
+                // If course has no quizzes, return early
+                if ($totalQuizzes === 0) {
                     $progress = $this->createEmptyProgress($courseId, $userId);
                     DB::commit();
                     return $progress;
@@ -233,12 +228,11 @@ class CourseProgressService
      */
     private function updateProgressRecord($course, $userId, $quizStats, $assignmentStats)
     {
-        // Calculate total completed items and total items
-        $completedItemsCount = $quizStats['completed_count'] + $assignmentStats['completed_count'];
-        $totalItemsCount = $quizStats['total_quizzes'] + $assignmentStats['total_assignments'];
+        $completedItemsCount = $quizStats['completed_count'];
+        $totalItemsCount = $quizStats['total_quizzes'];
 
-        // Calculate total grade (50% quizzes, 50% assignments)
-        $totalGrade = ($quizStats['average'] + $assignmentStats['average']) / 2;
+        // Calculate total grade
+        $totalGrade = $quizStats['average'];
 
         // Determine status
         $status = $this->determineProgressStatus(

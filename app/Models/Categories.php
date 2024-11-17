@@ -16,4 +16,9 @@ class Categories extends Model
         'description'
     ];
 
+    public function courses()
+    {
+        return $this->hasMany(Courses::class, 'category_id');
+    }
+
 }

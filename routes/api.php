@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\QuizQuestionController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserQuizAttemptController;
+use App\Http\Controllers\Api\VideoProgressController;
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\InstructorMiddleware;
 use Illuminate\Http\Request;
@@ -52,31 +53,41 @@ Route::middleware(['auth:sanctum'])->group(function(){
 
     Route::post('/instructor-application', [InstructorController::class, 'instructorApplication']);
 
-    //Admin Routes
-    Route::middleware([AdminMiddleware::class])->group(function () {
+    /**
+     * Administrator Routes
+     */
+    // Super Admin
+    Route::middleware('admin')->group(function () {
+        Route::post('/admin/create', [UserController::class, 'createAdmin']);        
+        Route::post('/admin/new-role', [UserController::class, 'createRole']);        
+    });
+
+    // User Management Admin Routes
+    Route::middleware('admin:admin, user-admin')->group(function () {
         Route::get('/instructor-applications', [InstructorController::class, 'index']);
         Route::post('/instructor-applications/{application}/approve', [InstructorController::class, 'approve']);
         Route::post('/instructor-applications/{application}/reject', [InstructorController::class, 'reject']);
-
         Route::get('/affiliate-applications', [AffiliateController::class, 'index']);
         Route::post('/affiliates/{affiliate}/approve', [AffiliateController::class, 'approve']);
         Route::post('/affiliates/{affiliate}/reject', [AffiliateController::class, 'reject']);
         Route::post('/affiliates/{affiliate}/suspend', [AffiliateController::class, 'suspend']);
         Route::get('/affiliates-suspended', [AffiliateController::class, 'viewSuspended']);
-        Route::post('/affiliate/{affiliate}/lift-suspension', [AffiliateController::class, 'liftSuspension']);        
-
-        //Route::post('/affiliate/purchases/{id}/process-payment', [AffiliatePurchaseController::class, 'processPayment']);
-
-        Route::post('/admin/create', [UserController::class, 'createAdmin']);
+        Route::post('/affiliate/{affiliate}/lift-suspension', [AffiliateController::class, 'liftSuspension']); 
         Route::post('/users/{user}/assign-role', [UserController::class, 'assignRole']);
-        Route::post('/admin/new-role', [UserController::class, 'createRole']);
         Route::get('/users/{user}/roles', [UserController::class, 'getUserRoles']);
+    });
 
+    // Content Management Admin Routes
+    Route::middleware('admin:admin, content-admin')->group(function () {
         Route::apiResource('categories', CategoriesController::class);
-
         Route::put('/courses/approve/{courseApproval}', [CourseController::class, 'approveCourse']);
         Route::get('/course-applications', [CourseController::class, 'courseApprovalRequests']);
-        
+    });
+
+    // Finance Management Admin Routes
+    Route::middleware('admin:admin, finance-admin')->group(function () {
+        Route::patch('/affiliates/{id}/update-commission-rate', [AffiliateController::class, 'updateCommissionRate']); 
+        //Route::post('/affiliate/purchases/{id}/process-payment', [AffiliatePurchaseController::class, 'processPayment']);
     });
 
     // Instructor Routes
@@ -84,6 +95,8 @@ Route::middleware(['auth:sanctum'])->group(function(){
         Route::get('/courses', [InstructorCourseController::class, 'getCourses']);
         Route::get('/courses/{course}/assignments', [InstructorCourseController::class, 'getCourseAssignments']);
         Route::get('/assignments/{assignment}/submissions', [InstructorCourseController::class, 'getSubmissionsForAssignment']);
+        Route::get('/courses/{course}/quizzes', [InstructorCourseController::class, 'getCourseQuizzes']);
+        Route::get('/courses/{course}/quizzes/{quiz}/analytics', [InstructorCourseController::class, 'getQuizAnalytics']);
     });
 
     Route::get('courses', [CourseController::class, 'index'])->name('courses.index');
@@ -92,11 +105,14 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::post('courses/{course}', [CourseController::class, 'update'])->name('courses.update');
     Route::delete('courses/{course}', [CourseController::class, 'destroy'])->name('courses.destroy');
 
+    Route::get('/courses/filter', [CourseController::class, 'filterCourses']);
+
     Route::get('/courses/{course}/lessons', [LessonsController::class, 'index']);
     Route::post('/courses/{course}/lessons', [LessonsController::class, 'store']);
     Route::get('/courses/{course}/lessons/{lesson}', [LessonsController::class, 'show']);
     Route::post('/courses/{course}/lessons/{lesson}', [LessonsController::class, 'update']);
     Route::delete('/courses/{course}/lessons/{lesson}', [LessonsController::class, 'destroy']);
+    Route::delete('/courses/{course}/lessons/{lesson}/subcontents/{subcontent}', [LessonsController::class, 'destroySubcontent']);
 
     Route::get('/courses/{course}/completion-status', [CourseProgressController::class, 'show']);
     Route::get('/courses/{course}/progress/reset', [CourseProgressController::class, 'reset']);
@@ -104,9 +120,12 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::post('/courses/{course}/certificate', [CertificateController::class, 'generate']);
     Route::get('/certificates/verify/{number}', [CertificateController::class, 'verify'])->name('certificates.verify');
 
-    Route::get('lessons/{lesson}/progress', [LessonProgressController::class, 'show']);
-    Route::patch('lessons/{lesson}/progress', [LessonProgressController::class, 'update']);
-    Route::get('courses/{course}/progress', [LessonProgressController::class, 'getCourseProgress']);
+    //Route::get('lessons/{lesson}/progress', [LessonProgressController::class, 'show']);
+    //Route::patch('lessons/{lesson}/progress', [LessonProgressController::class, 'update']);
+    //Route::get('courses/{course}/progress', [LessonProgressController::class, 'getCourseProgress']);
+
+    Route::post('/video-progress/{subcontentId}', [VideoProgressController::class, 'updateProgress']); // updates watch time for videos
+    Route::get('courses/{course}/progress', [VideoProgressController::class, 'viewProgress']);
 
     Route::get('/lessons/{lesson}/quiz', [QuizController::class, 'index']);
     Route::get('/lessons/{lesson}/quiz/{quiz}', [QuizController::class, 'show']);
@@ -173,6 +192,13 @@ Route::middleware(['auth:sanctum'])->group(function(){
         Route::post('/checkout', [CartController::class, 'checkout']);
         Route::delete('/items/{cartItemId}', [CartController::class, 'removeFromCart']);
     });
+
+    Route::prefix('wishlist')->group(function () {
+        Route::get('/', [CartController::class, 'viewWishlist']);
+        Route::post('/add', [CartController::class, 'addToWishlist']);
+        Route::delete('remove/{wishlistId}', [CartController::class, 'removeFromWishlist']);
+    });
+    
 
     //Route::post('/affiliate/purchases/track', [AffiliatePurchaseController::class, 'track']);
     

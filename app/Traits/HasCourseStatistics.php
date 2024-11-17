@@ -67,7 +67,7 @@ trait HasCourseStatistics
      */
     public function calculateTotalLessons(): int
     {
-        $totalLessons = $this->lessons()->count();
+        $totalLessons = $this->lessons()->withCount('subcontents')->get()->sum('subcontents_count'); //i included subcontents()
         $this->total_lessons = $totalLessons;
         $this->save();
 
@@ -119,7 +119,7 @@ trait HasCourseStatistics
      */
     public function calculateVideoLength(): int
     {
-        return (int) $this->lessons()->sum('video_duration');
+        return (int) $this->lessons()->sum('total_watch_time'); // changed from video_duration
     }
 
     /**

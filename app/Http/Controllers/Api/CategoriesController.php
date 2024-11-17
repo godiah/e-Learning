@@ -13,15 +13,12 @@ class CategoriesController extends Controller
     //Displays all categories
     public function index()
     {
-        $categories = Categories::paginate(10);
-        if($categories->count() > 0)
-        {
-            return CategoriesResource::collection($categories);
-        }
-        else
-        {
+        $categories = Categories::with('courses')->paginate(10);
+        
+        if ($categories->isEmpty()) {
             return response()->json(['message' => 'No categories found'], 404);
         }
+        return CategoriesResource::collection($categories);
     }
 
     //Add a new category

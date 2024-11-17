@@ -95,6 +95,21 @@ class User extends Authenticatable
         return $this->roles()->where('name', 'affiliate')->exists();
     }
 
+    public function isUserAdmin(): bool
+    {
+        return $this->roles()->where('name', 'admin-user-mgt')->exists();
+    }
+
+    public function isContentAdmin(): bool
+    {
+        return $this->roles()->where('name', 'admin-content-mgt')->exists();
+    }
+
+    public function isFinanceAdmin(): bool
+    {
+        return $this->roles()->where('name', 'admin-financial-mgt')->exists();
+    }
+
     public function hasRole($roleName)
     {
         return $this->roles()->where('name', $roleName)->exists();

@@ -49,20 +49,15 @@ class QuizAttempt extends Model
     public function getRemainingTimeAttribute()
     {
         $now = now();
-
-        // If the end time has passed, return "0 minutes"
+    
         if ($now->greaterThan($this->end_time)) {
             return '0 minutes';
         }
 
-        // Calculate the difference in seconds
-        $remainingSeconds = $now->diffInSeconds($this->end_time);
+        $interval = $now->diff($this->end_time);
+        $hours = $interval->h;
+        $minutes = $interval->i;
 
-        // Calculate hours and minutes
-        $hours = floor($remainingSeconds / 3600);
-        $minutes = floor(($remainingSeconds % 3600) / 60);
-
-        // Format the remaining time
         $timeParts = [];
         if ($hours > 0) {
             $timeParts[] = "{$hours} hour" . ($hours > 1 ? 's' : '');

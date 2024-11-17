@@ -36,12 +36,12 @@ class CoursePolicy
     public function delete(User $user, Courses $courses): bool
     {
         // Allow only if the authenticated user is the instructor of the course
-        return $user->id === $courses->instructor_id || $user->roles()->where('name', 'admin')->exists();
+        return $user->id === $courses->instructor_id || $user->isAdmin() ||  $user->isContentAdmin();
     }
 
     public function approveCoursesCommand(User $user)
     {
-        return $user->roles->contains('name', 'admin');
+        return $user->isAdmin() ||  $user->isContentAdmin();
     }
 
 }

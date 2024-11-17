@@ -23,7 +23,7 @@ class CourseDiscountPolicy
     {
         $course = $courseDiscount->course;
 
-        return $user->id === $course->instructor_id  || $user->isAdmin();
+        return $user->id === $course->instructor_id  || $user->isAdmin() ||  $user->isContentAdmin();
     }
 
     /**
@@ -33,6 +33,6 @@ class CourseDiscountPolicy
     {
         $course = $courseDiscount->course;
 
-        return $user->id === $course->instructor_id  || $user->isAdmin();
+        return $user->id === $course->instructor_id  || $user->isAdmin() ||  $user->isContentAdmin();
     }
 }

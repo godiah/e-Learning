@@ -9,9 +9,11 @@ use App\Mail\CourseApprovalMail;
 use App\Mail\CourseSubmittedForApproval;
 use App\Models\Courses;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -66,6 +68,8 @@ class CourseController extends Controller
             'who_is_for' => 'nullable|array',
             'who_is_for.*' => 'string',
             'status' => 'pending',
+            'duration' => 'required|integer',
+            'pass_mark' => 'nullable|numeric|max:100|min:0'
         ]);
 
         if($validator->fails()) {
@@ -233,6 +237,8 @@ class CourseController extends Controller
             'requirements.*' => 'string',
             'who_is_for' => 'nullable|array',
             'who_is_for.*' => 'string',
+            'duration' => 'nullable|integer',
+            'pass_mark' => 'nullable|numeric'
         ]);
 
         if($validator->fails())
@@ -255,7 +261,7 @@ class CourseController extends Controller
                 $course->course_image = $imagePath;
             }
 
-            $fieldsToUpdate = $request->only(['title', 'description', 'detailed_description', 'price','level','category_id','language','objectives','requirements','who_is_for']);
+            $fieldsToUpdate = $request->only(['title', 'description', 'detailed_description', 'price','level','category_id','language','objectives','requirements','who_is_for','duration', 'pass_mark']);
             $course->fill($fieldsToUpdate);
 
             $course->save();
@@ -289,4 +295,11 @@ class CourseController extends Controller
             'message' => 'Course deleted successfully'
         ]);
     }
+
+
+    public function filterCourses(Request $request)
+    {
+        
+    }
+
 }

@@ -10,17 +10,21 @@ class LessonProgress extends Model
 {
     use HasFactory;
 
+    protected $table = 'lesson_progress';
+
     protected $fillable = [
         'user_id',
         'lesson_id',
         'time_watched',
         'status',
-        'last_watched_at'
+        'last_watched_at', 'completed_at','completed_subcontents'
     ];
 
     protected $casts = [
         'status' => LessonProgressStatus::class,
-        'last_watched_at' => 'datetime'
+        'last_watched_at' => 'datetime',
+        'completed_subcontents' => 'array',
+        'completed_at' => 'datetime'
     ];
 
     /**
@@ -41,20 +45,4 @@ class LessonProgress extends Model
         return $this->belongsTo(Lessons::class);
     }
 
-    public function updateProgress(int $timeWatched, Lessons $lesson)
-    {
-        $this->time_watched = $timeWatched;
-        $this->last_watched_at = now();
-        
-        // Calculate watch percentage and update status
-        $watchPercentage = ($timeWatched / $lesson->video_duration) * 100;
-        $this->status = LessonProgressStatus::fromWatchPercentage($watchPercentage);
-        
-        return $this->save();
-    }
-
-    public function isCompleted(): bool
-    {
-        return $this->status === LessonProgressStatus::COMPLETED;
-    }
 }

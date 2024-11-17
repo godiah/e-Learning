@@ -16,11 +16,20 @@ class LessonProgressResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'lesson_id' => $this->lesson_id,
-            'time_watched' => $this->time_watched,
-            'status' => $this->status->value,
+            'lesson' => new LessonsResource($this->lesson),
+            'total_watch_time' => $this->time_watched,
+            'status' => $this->status,
+            'completed_subcontents' => $this->completed_subcontents,
+            'quiz_completed' => $this->quiz_completed,
             'last_watched_at' => $this->last_watched_at,
-            //'can_proceed' => $this->can_proceed
+            'subcontents_progress' => SubcontentProgressResource::collection(
+                $this->lesson->subcontents->map(function ($subcontent) {
+                    return [
+                        'subcontent' => $subcontent,
+                        'progress' => $subcontent->progress()->where('user_id', auth()->id())->first()
+                    ];
+                })
+            )
         ];
     }
 }

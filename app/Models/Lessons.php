@@ -9,8 +9,12 @@ class Lessons extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['course_id','instructor_id','title', 'content', 'video_url', 'order_index', 'video_duration','resource_path'];
+    protected $fillable = ['course_id','instructor_id','title', 'content', 'total_watch_time','order_index'];
 
+    public function subcontents()
+    {
+        return $this->hasMany(LessonSubcontent::class,'lesson_id')->orderBy('order_index');
+    }
 
     public function instructor()
     {
@@ -47,12 +51,27 @@ class Lessons extends Model
 
         static::updated(function ($lesson) {
             $lesson->course->updateVideoLength();
+            $lesson->course->calculateTotalLessons();
+            $lesson->course->calculateTotalContent();
         });
 
         static::deleted(function ($lesson) {
             $lesson->course->updateVideoLength();
             $lesson->course->calculateTotalLessons();
             $lesson->course->calculateTotalContent();
+        });
+    }
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::creating(function ($lesson) {
+            // Get the highest order_index for the course
+            $maxOrder = static::where('course_id', $lesson->course_id)
+                ->max('order_index');
+            
+            // Set the new order_index
+            $lesson->order_index = $maxOrder ? $maxOrder + 1 : 1;
         });
     }
 }

@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CartResource;
 use App\Http\Resources\OrderResource;
+use App\Http\Resources\WishlistResource;
 use App\Models\Affiliate;
 use App\Models\AffiliatePurchase;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Courses;
 use App\Models\Order;
+use App\Models\Wishlist;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -209,6 +211,69 @@ class CartController extends Controller
         }
     }
 
+    /// Add to wishlist
+    public function addToWishlist(Request $request)
+    {
+        $user = request()->user();
+
+        $validated = $request->validate([
+            'course_id' => 'required|exists:courses,id',
+        ]);
+
+        try {
+            $wishlist = Wishlist::firstOrCreate([
+                'user_id' => $user->id,
+                'course_id' => $validated['course_id'],
+                'added_at' => now(),
+            ]);
+
+            return response()->json([
+                'message' => 'Course added to wishlist',
+                'wishlist' => new WishlistResource($wishlist),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to add course to wishlist'], 500);
+        }
+    }
+
+    // Remove from wishlist
+    public function removeFromWishlist($wishlistId)
+    {
+        $user = request()->user();
+
+        try {
+            $wishlist = Wishlist::where('id', $wishlistId)
+                         ->where('user_id', $user->id)
+                         ->firstOrFail();
+
+            $wishlist->delete();
+
+            return response()->json([
+                'message' => 'Course removed from wishlist',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to remove course from wishlist'], 500);
+        }
+    }
+
+    // View wishlist items
+    public function viewWishlist()
+    {
+        $user = request()->user();
+
+        try {
+            $wishlist = Wishlist::where('user_id', $user->id)
+                        ->with('course')
+                        ->get();
+
+            return response()->json([
+                'wishlist' => WishlistResource::collection($wishlist),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to fetch wishlist'], 500);
+        }
+    }
+
     private function validateAffiliateCode($affiliateCode)
     {
         $affiliate = Affiliate::whereHas('link', function ($query) use ($affiliateCode) {
@@ -252,7 +317,6 @@ class CartController extends Controller
             $affiliate->increment('total_earnings', $commission);
         }
     }
-
 
     private function updateCartTotals(Cart $cart)
     {

@@ -95,7 +95,7 @@ class QuizAttemptController extends Controller
         // Validate attempt is in progress
         if ($attempt->status !== 'in_progress') {
             return response()->json([
-                'message' => 'Quiz already submitted or timed out',
+                'message' => 'Quiz already submitted',
                 'status' => $attempt->status
             ], 400);
         }
@@ -195,18 +195,9 @@ class QuizAttemptController extends Controller
      */
     public function endAttempt(QuizAttempt $attempt)
     {
-        Log::info("Starting endAttempt for attempt {$attempt->id}", [
-            'status' => $attempt->status,
-            'user_id' => $attempt->user_id
-        ]);
-
         $user = request()->user();
 
         if ($attempt->user_id !== $user->id) {
-            Log::warning("Unauthorized endAttempt access", [
-                'attempt_user_id' => $attempt->user_id,
-                'request_user_id' => $user->id
-            ]);
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -263,9 +254,12 @@ class QuizAttemptController extends Controller
                     'end_time' => $attempt->end_time
                 ]);
 
-                return new QuizAttemptResource($attempt);
-            } finally {
                 Cache::forget($lockKey);
+
+                return new QuizAttemptResource($attempt);
+            } catch (\Exception $e) {
+                Cache::forget($lockKey);
+                throw $e;
             }
         });
     }
