@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -10,18 +9,24 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class AffiliateApplicationApprovedMail extends Mailable
+class AffiliateLinkGenerated extends Mailable
 {
     use Queueable, SerializesModels;
+
+    public $user;
+    public $courseName;
+    public $trackingCode;
+    public $shortUrl;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(
-        public User $user        
-    )
+    public function __construct($user, $courseName, $trackingCode, $shortUrl)
     {
-        //
+        $this->user = $user;
+        $this->courseName = $courseName;
+        $this->trackingCode = $trackingCode;
+        $this->shortUrl = $shortUrl;
     }
 
     /**
@@ -30,7 +35,7 @@ class AffiliateApplicationApprovedMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Affiliate Application Approved Mail',
+            subject: 'Affiliate Link Generated Mail',
         );
     }
 
@@ -40,7 +45,7 @@ class AffiliateApplicationApprovedMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'emails.affiliate_approval',
+            view: 'emails.affiliate_link',
         );
     }
 

@@ -27,7 +27,8 @@ class User extends Authenticatable
         'failed_login_attempts',
         'locked_until',
         'is_instructor',
-        'is_affiliate'
+        'is_affiliate',
+        'google_id'
     ];
 
     public function courses()
@@ -128,6 +129,11 @@ class User extends Authenticatable
     public function orders()
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function affiliate()
+    {
+        return $this->hasOne(Affiliate::class);
     }
 
 

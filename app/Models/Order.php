@@ -9,6 +9,8 @@ class Order extends Model
 {
     use HasFactory;
 
+    // Remove affiliate_code and add payment tracking ID
+
     protected $fillable = [
         'user_id',
         'total_amount',
@@ -24,7 +26,7 @@ class Order extends Model
         'final_amount' => 'decimal:2'
     ];
 
-     public function user()
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
@@ -37,6 +39,11 @@ class Order extends Model
     public function enrollments()
     {
         return $this->hasMany(Enrollment::class);
+    }
+
+    public function items()
+    {
+        return $this->hasMany(OrderItem::class);
     }
     
     public function affiliatePurchases()

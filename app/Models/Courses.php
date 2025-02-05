@@ -7,12 +7,15 @@ use App\Traits\HasCourseStatistics;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\URL;
 
 class Courses extends Model
 {
     use HasFactory, HasCourseStatistics;
 
-     protected $table = 'courses';
+    protected $table = 'courses';
+
+    protected $appends = ['url'];
 
     protected $fillable = [
         'instructor_id', 'category_id', 'title', 'description', 'detailed_description',
@@ -46,6 +49,11 @@ class Courses extends Model
             CacheHelper::clearCourseCaches($course->id);
             CacheHelper::clearInstructorCaches($course->instructor_id);
         });
+    }
+
+    public function getUrlAttribute()
+    {
+        return URL::to('/api/courses/' . $this->id);
     }
 
     public function instructor()

@@ -12,10 +12,6 @@
     <h3>Welcome, {{ $user->name }}!</h3>
     <div class="content">
         <p>Congratulations! Your affiliate application has been approved.</p>
-        <p>You can start earning commissions by sharing your unique affiliate link code:</p>
-        <h2>{{ $code }}</h2>
-        <p>Share this code with your network, and when someone makes a purchase using your link, you will earn a
-            commission!</p>
 
         <h3>Terms and Conditions:</h3>
         <ul>

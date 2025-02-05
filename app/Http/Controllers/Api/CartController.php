@@ -15,6 +15,7 @@ use App\Models\Order;
 use App\Models\Wishlist;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class CartController extends Controller
@@ -148,10 +149,6 @@ class CartController extends Controller
     {
         $user = request()->user();
 
-        $validated = $request->validate([
-            'affiliate_code' => 'nullable|string',
-        ]);
-
         DB::beginTransaction();
         try {
             $cart = Cart::where('user_id', $user->id)
@@ -163,14 +160,6 @@ class CartController extends Controller
                 return response()->json(['message' => 'Cart is empty'], 400);
             }
 
-            // Validate affiliate code if provided
-            if (!empty($validated['affiliate_code'])) {
-                $affiliateStatus = $this->validateAffiliateCode($validated['affiliate_code']);
-                if ($affiliateStatus !== true) {
-                    return response()->json(['message' => 'Invalid '], 400);
-                }
-            }
-
             // Process payment
             //$payment = $this->processPayment($request->payment_details, $cart->final_amount);
 
@@ -180,13 +169,17 @@ class CartController extends Controller
                 'total_amount' => $cart->total_amount,
                 'discount_total' => $cart->discount_total,
                 'final_amount' => $cart->final_amount,
-                'affiliate_code' => $validated['affiliate_code'] ?? null,
                 //'payment_id' => $payment->id
             ]);
 
-            // Process affiliate commission
-            if (!empty($validated['affiliate_code'])) {
-                $this->processAffiliateCommission($cart, $order->id, $validated['affiliate_code']);
+            foreach ($cart->items as $cartItem) {
+                \App\Models\OrderItem::create([
+                    'order_id'        => $order->id,
+                    'course_id'       => $cartItem->course_id,
+                    'price'           => $cartItem->price,
+                    'discount_amount' => $cartItem->discount_amount,
+                    'final_price'     => $cartItem->final_price,
+                ]);
             }
 
             // Enroll user in courses
@@ -201,9 +194,20 @@ class CartController extends Controller
 
             DB::commit();
 
+            // Record the conversion associated with an affiliate click:
+            $response = app()->call('App\Http\Controllers\Api\ConversionTrackingController@recordConversionFromCheckout', [
+                'request' => $request,
+                'order'   => $order
+            ]);
+
+            Log::info('Conversion call response: ' . json_encode($response));
+
+            $conversionResponseArray = $response->getData(true);
+
             return response()->json([
                 'message' => 'Order completed successfully',
-                'order' => new OrderResource($order)
+                'order' => new OrderResource($order),
+                'conversion' => $conversionResponseArray['original'] ?? null,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -274,49 +278,49 @@ class CartController extends Controller
         }
     }
 
-    private function validateAffiliateCode($affiliateCode)
-    {
-        $affiliate = Affiliate::whereHas('link', function ($query) use ($affiliateCode) {
-            $query->where('code', $affiliateCode);
-        })->first();
+    // private function validateAffiliateCode($affiliateCode)
+    // {
+    //     $affiliate = Affiliate::whereHas('link', function ($query) use ($affiliateCode) {
+    //         $query->where('code', $affiliateCode);
+    //     })->first();
 
-        if (!$affiliate) {
-            return 'Invalid affiliate code';
-        }
+    //     if (!$affiliate) {
+    //         return 'Invalid affiliate code';
+    //     }
 
-        if ($affiliate->status !== 'approved') {
-            return 'This affiliate code is currently suspended';
-        }
+    //     if ($affiliate->status !== 'approved') {
+    //         return 'This affiliate code is currently suspended';
+    //     }
 
-        return true;
-    }
+    //     return true;
+    // }
 
-    private function processAffiliateCommission($cart, $orderId, $affiliateCode)
-    {
-        $user = request()->user();
+    // private function processAffiliateCommission($cart, $orderId, $affiliateCode)
+    // {
+    //     $user = request()->user();
 
-        $affiliate = Affiliate::whereHas('link', function ($query) use ($affiliateCode) {
-            $query->where('code', $affiliateCode);
-        })
-        ->where('status', 'approved')
-        ->firstOrFail();
+    //     $affiliate = Affiliate::whereHas('link', function ($query) use ($affiliateCode) {
+    //         $query->where('code', $affiliateCode);
+    //     })
+    //     ->where('status', 'approved')
+    //     ->firstOrFail();
 
-        foreach ($cart->items as $item) {
-            $commission = $item->final_price * ($affiliate->commission_rate / 100);
+    //     foreach ($cart->items as $item) {
+    //         $commission = $item->final_price * ($affiliate->commission_rate / 100);
 
-            AffiliatePurchase::create([
-                'affiliate_id' => $affiliate->id,
-                'user_id' => $user->id,
-                'order_id' => $orderId,
-                'amount' => $item->final_price,
-                'commission' => $commission,
-                'status' => 'pending'
-            ]);
+    //         AffiliatePurchase::create([
+    //             'affiliate_id' => $affiliate->id,
+    //             'user_id' => $user->id,
+    //             'order_id' => $orderId,
+    //             'amount' => $item->final_price,
+    //             'commission' => $commission,
+    //             'status' => 'pending'
+    //         ]);
 
-            $affiliate->increment('total_sales');
-            $affiliate->increment('total_earnings', $commission);
-        }
-    }
+    //         $affiliate->increment('total_sales');
+    //         $affiliate->increment('total_earnings', $commission);
+    //     }
+    // }
 
     private function updateCartTotals(Cart $cart)
     {

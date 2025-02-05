@@ -13,8 +13,11 @@ use App\Models\Affiliate;
 use App\Models\AffiliateLink;
 use App\Models\Role;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -67,7 +70,74 @@ class AffiliateController extends Controller
         ], 201);
     }
 
-    // View Application Requests
+    /**
+     * Return overall stats for the logged-in affiliate.
+     */
+    public function getOverallStats(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized. Please log in.'], 401);
+        }
+        
+        // Ensure the logged-in user is an affiliate.
+        $existingAffiliate = $user->is_affiliate;
+        if (!$existingAffiliate) {
+            return response()->json(['error' => 'Access Denied. You are not an affiliate.'], 403);
+        }
+        
+        $affiliate = $user->affiliate;
+        // Cache key unique to this affiliate
+        $cacheKey = "affiliate_stats_{$affiliate->id}";
+
+        // Cache results for 15 minutes
+        return Cache::remember($cacheKey, 900, function () use ($affiliate) {
+            $links = $affiliate->links;
+
+            $totalClicks = 0;
+            $totalConversions = 0;
+            $totalEarnings = 0;
+            $totalSales = 0;
+            $last30DaysClicks = 0;
+            $last30DaysConversions = 0;
+
+            foreach ($links as $link) {
+                $totalClicks += $link->clicks()->count();
+                $totalConversions += $link->conversions()->count();
+                $totalEarnings += $link->commissions()->sum('commission_amount');
+                $totalSales = $totalConversions;
+
+                $last30DaysClicks += $link->clicks()
+                    ->where('clicked_at', '>=', now()->subDays(30))
+                    ->count();
+                $last30DaysConversions += $link->conversions()
+                    ->where('converted_at', '>=', now()->subDays(30))
+                    ->count();
+            }
+
+            $conversionRate = $totalClicks > 0 ? ($totalConversions / $totalClicks) * 100 : 0;
+
+            $stats = [
+                'total_clicks' => $totalClicks,
+                'total_conversions' => $totalConversions,
+                'conversion_rate' => $conversionRate,
+                'total_earnings' => $totalEarnings,
+                'total_sales' => $totalSales,
+                'last_30_days' => [
+                    'clicks' => $last30DaysClicks,
+                    'conversions' => $last30DaysConversions,
+                ]
+            ];
+
+            return response()->json(['data' => $stats]);
+        });
+    }
+    
+    /**
+     * USER MANAGEMENT ADMIN RESTRICTED ROUTES
+     */
+
+    // View Affiliate Application Requests - User Mgt Admin
     public function index()
     {
         $pendingApplications = Affiliate::where('status', 'pending')->paginate(10);
@@ -84,17 +154,15 @@ class AffiliateController extends Controller
         }
     }
 
-    // Approve Applications
+    // Approve Affiliate Applications - User Mgt Admin
     public function approve(Affiliate $affiliate)
     {
         if ($affiliate->status === 'approved') {
-            if ($affiliate->link) {
-                return response()->json([
-                    'message' => 'This application has already been approved.',
-                    'link' => $affiliate->link->code
-                ]);
-            }
+            return response()->json([
+                'message' => 'This application has already been approved.'                
+            ]);
         }
+
         // Approve the application
         $affiliate->update(['status' => 'approved']);
 
@@ -106,28 +174,17 @@ class AffiliateController extends Controller
         }
 
         // Update the user's is_affiliate flag
-        $user->update(['is_affiliate' => true]);
+        $user->update(['is_affiliate' => true]);        
 
-        // Generate unique affiliate link
-        $code = strtoupper(Str::random(8));
-        while (AffiliateLink::where('code', $code)->exists()) {
-            $code = strtoupper(Str::random(8));
-        }
-
-        $affiliate->link()->create([
-            'code' => $code
-        ]);
-
-        Mail::to($user->email)->send(new AffiliateApplicationApprovedMail($user,$code));
+        Mail::to($user->email)->send(new AffiliateApplicationApprovedMail($user));
 
         return response()->json([
-            'message' => 'Affiliate application approved and code sent to your email',
-            'data' => new AffiliateResource($affiliate),
-            'link' => $affiliate->link
+            'message' => 'Affiliate application approved. Check your email for confirmation.',
+            'data' => new AffiliateResource($affiliate)            
         ]);
     }
 
-    // Reject Applications
+    // Reject Affiliate Applications - User Mgt Admin
     public function reject(Affiliate $affiliate)
     {
         $affiliate->update(['status' => 'rejected']);
@@ -140,7 +197,7 @@ class AffiliateController extends Controller
         ]);
     }
 
-    // Suspend Affiliation account
+    // Suspend Affiliate Account - User Mgt Admin
     public function suspend(Affiliate $affiliate)
     {
         $affiliate->update(['status' => 'suspended']);
@@ -162,7 +219,7 @@ class AffiliateController extends Controller
         ]);
     }
 
-    // View Suspended Accounts
+    // View Suspended Affiliate Accounts - User Mgt Admin
     public function viewSuspended()
     {
         $affiliates = Affiliate::where('status', 'suspended')->paginate(10);
@@ -179,7 +236,7 @@ class AffiliateController extends Controller
         }
     }
 
-    // Lift Suspension on Accounts
+    // Lift Suspension on Affiliate Accounts - User Mgt Admin
     public function liftSuspension(Affiliate $affiliate)
     {
         if ($affiliate->status !== 'suspended') {
@@ -208,49 +265,5 @@ class AffiliateController extends Controller
             'data' => new AffiliateResource($affiliate)
         ]);
     }
-
-    // Affiliate Statistics
-    public function stats(Affiliate $affiliate)
-    {
-        $user = request()->user();
-        if ($user->id !== $affiliate->user_id && !$user->hasRole('admin')) {
-            return response()->json([
-                'message' => 'Unauthorized access.',
-            ], 403);
-        }
-
-        $affiliate->load(['purchases' => function ($query) {
-            $query->latest();
-        }]);
-
-        if ($affiliate->total_earnings > 0 || $affiliate->total_sales > 0 || $affiliate->purchases->isNotEmpty()) {
-            return response()->json([
-                'total_earnings' => $affiliate->total_earnings,
-                'total_sales' => $affiliate->total_sales,
-                'recent_purchases' => $affiliate->purchases,
-                'status' => $affiliate->status
-            ]);
-        } else {
-            return response()->json([
-                'message' => 'No earnings or sales recorded yet for this affiliate.'
-            ]);
-        }
-    }
-
-    // Adjust Affiliate Commision Rates
-    public function updateCommissionRate(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'commission_rate' => 'required|numeric|min:1|max:100',
-        ]);
-
-        $affiliate = Affiliate::findOrFail($id);
-        $affiliate->update(['commission_rate' => $validated['commission_rate']]);
-
-        return response()->json([
-            'message' => 'Commission rate updated successfully',
-            'commission_rate' => $affiliate->commission_rate
-        ]);
-    }
-
 }
+

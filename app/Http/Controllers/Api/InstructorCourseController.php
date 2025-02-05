@@ -36,19 +36,27 @@ class InstructorCourseController extends Controller
     public function getCourseQuizzes(Request $request, Courses $course)
     {
         $user = $request->user();
-
-        if ($course->instructor_id !== $user->id)
-        {
+    
+        // Check if the user is the course instructor
+        if ($course->instructor_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-
-        $quizzes = Quiz::whereIn('lesson_id', $course->lessons()->pluck('id'))->get();
-
+    
+        // Fetch quizzes with their questions and answers, with pagination
+        $quizzes = Quiz::whereIn('lesson_id', $course->lessons()->pluck('id'))
+            ->with([
+                'questions' => function ($query) {
+                    $query->with('answers');
+                }
+            ])
+            ->paginate(10); // Fetch 10 quizzes per page
+            
         return response()->json([
             'message' => 'Course quizzes retrieved successfully',
             'data' => $quizzes
         ]);
     }
+
 
     public function getQuizAnalytics(Request $request, Courses $course, Quiz $quiz)
     {
@@ -69,7 +77,7 @@ class InstructorCourseController extends Controller
 
         $quizAnalytics = [
             'quiz_id' => $quiz->id,
-            'quiz_name' => $quiz->name,
+            'quiz_name' => $quiz->title,
             'total_attempts' => $quizAttempts->count(),
             'average_score' => array_sum($studentBestScores) / count($studentBestScores),
             'highest_score' => max($studentBestScores),

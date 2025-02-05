@@ -17,12 +17,10 @@ class Affiliate extends Model
         'status',
         'total_earnings',
         'total_sales',
-        'commission_rate',
     ];
 
     protected $casts = [
-        'total_earnings' => 'decimal:2',
-        'commission_rate' => 'decimal:2'
+        'total_earnings' => 'decimal:2',        
     ];
 
     public function user()
@@ -30,13 +28,17 @@ class Affiliate extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function link()
+    public function links()
     {
-        return $this->hasOne(AffiliateLink::class);
+        return $this->hasMany(AffiliateLink::class);
     }
 
-    public function purchases()
+    public function conversions()
     {
-        return $this->hasMany(AffiliatePurchase::class);
+        return $this->hasManyThrough(ConversionTracking::class, AffiliateLink::class);
+    }
+
+    public function commissions() {
+        return $this->hasMany(Commission::class); 
     }
 }

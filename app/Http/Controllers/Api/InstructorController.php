@@ -61,7 +61,7 @@ class InstructorController extends Controller
         ]);
     }
 
-    //View Application Requests(Admin ONLY)
+    //View Application Requests(userMgtAdmin ONLY)
     public function index()
     {
         $applications = InstructorApplication::where('status', 'pending')->paginate(5);
@@ -77,7 +77,7 @@ class InstructorController extends Controller
         
     }
 
-    //Approve Applications(Admin ONLY)
+    //Approve Applications(userMgtAdmin  ONLY)
     public function approve(InstructorApplication $application)
     {
         $application->update(['status' => 'approved']);
@@ -95,7 +95,7 @@ class InstructorController extends Controller
         return response()->json(['message' => 'Application approved successfully.']);
     }
 
-    // Reject Applications(Admin ONLY)
+    // Reject Applications(userMgtAdmin  ONLY)
     public function reject(InstructorApplication $application)
     {
         $application->update(['status' => 'rejected']);

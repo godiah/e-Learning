@@ -204,7 +204,7 @@ class CourseController extends Controller
     //Display  course details
     public function show(Courses $course)
     {
-        $this->authorize('view', $course); 
+        //$this->authorize('view', $course); 
         if ($course->status !== 'approved') {
             return response()->json(['message' => 'Course not found'], 404);
         }

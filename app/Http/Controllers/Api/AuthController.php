@@ -23,7 +23,9 @@ use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
-    //Register a new user
+    /**
+     * Register New User
+     */
     public function register(Request $request):JsonResponse
     {
         $executionKey = 'register:' . $request->ip();
