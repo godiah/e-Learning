@@ -62,7 +62,7 @@ Route::get('courses/{course}', [CourseController::class, 'show'])->name('courses
 // Activities
 Route::post('/activity', [ActivityController::class, 'store']);
 Route::get('/activity', [ActivityController::class, 'index']);
-Route::get('/activity/{activity}', [ActivityController::class, 'index']);
+Route::get('/activity/{activity}', [ActivityController::class, 'show']);
 
 
 Route::middleware(['auth:sanctum'])->group(function () {
