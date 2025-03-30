@@ -32,4 +32,22 @@ class ActivityController extends Controller
             'data' => new ActivityResource($activity)
         ], 201);
     }
+
+    // Fetch Activities
+    public function index()
+    {
+        $activities = Activity::paginate(10);
+
+        if ($activities->count() > 0) {
+            return ActivityResource::collection($activities);
+        } else {
+            return response()->json(['message' => 'No activities found.'], 404);
+        }
+    }
+
+    // Fetch single activity
+    public function show(Activity $activity)
+    {
+        return new ActivityResource($activity);
+    }
 }
