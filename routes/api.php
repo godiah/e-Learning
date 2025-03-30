@@ -59,7 +59,7 @@ Route::get('courses', [CourseController::class, 'index'])->name('courses.index')
 Route::get('courses/{course}', [CourseController::class, 'show'])->name('courses.show');
 
 
-Route::middleware(['auth:sanctum'])->group(function(){
+Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/profile', [AuthController::class, 'profile']); //change
     Route::post('/profile/picture', [AuthController::class, 'upload']);
     Route::delete('/profile/picture', [AuthController::class, 'deleteProfilePicture']);
@@ -78,8 +78,9 @@ Route::middleware(['auth:sanctum'])->group(function(){
      */
     // Super Admin
     Route::middleware('admin')->group(function () {
-        Route::post('/admin/create', [UserController::class, 'createAdmin']);        
-        Route::post('/admin/new-role', [UserController::class, 'createRole']);        
+        Route::post('/admin/create', [UserController::class, 'createAdmin']);
+        Route::post('/admin/new-role', [UserController::class, 'createRole']);
+        Route::get('/all-users', [UserController::class, 'index']);
     });
 
     // User Management Admin Routes
@@ -93,8 +94,9 @@ Route::middleware(['auth:sanctum'])->group(function(){
         Route::post('/affiliates/{affiliate}/reject', [AffiliateController::class, 'reject']);
         Route::post('/affiliates/{affiliate}/suspend', [AffiliateController::class, 'suspend']);
         Route::get('/affiliates-suspended', [AffiliateController::class, 'viewSuspended']);
-        Route::post('/affiliate/{affiliate}/lift-suspension', [AffiliateController::class, 'liftSuspension']); 
+        Route::post('/affiliate/{affiliate}/lift-suspension', [AffiliateController::class, 'liftSuspension']);
 
+        Route::get('/all-users', [UserController::class, 'index']);
         Route::post('/users/{user}/assign-role', [UserController::class, 'assignRole']);
         Route::get('/users/{user}/roles', [UserController::class, 'getUserRoles']);
     });
@@ -125,7 +127,7 @@ Route::middleware(['auth:sanctum'])->group(function(){
     });
 
     // Affiliate Routes
-    Route::prefix('affiliate')->group(function() {
+    Route::prefix('affiliate')->group(function () {
         Route::post('/links/{course}', [AffiliateLinkController::class, 'generate']);
         Route::get('/links', [AffiliateLinkController::class, 'index']);
         Route::get('/links/{affiliateLink}/stats', [AffiliateLinkController::class, 'getStats']);
@@ -179,7 +181,7 @@ Route::middleware(['auth:sanctum'])->group(function(){
 
     Route::post('assignments/{assignment}/submit', [AssignmentSubmissionController::class, 'submit']);
     Route::patch('assignments/{assignment}/submissions/{submission}/allow-resubmission', [AssignmentSubmissionController::class, 'allowResubmission']);
-    Route::patch('assignment-submissions/{submission}/grade',[AssignmentSubmissionController::class, 'grade']);
+    Route::patch('assignment-submissions/{submission}/grade', [AssignmentSubmissionController::class, 'grade']);
     Route::get('courses/{course}/assignments/{assignment}/submission', [AssignmentSubmissionController::class, 'viewSubmission']);
 
     Route::post('/courses/{course}/enroll', [EnrollmentController::class, 'enroll']);
@@ -191,7 +193,7 @@ Route::middleware(['auth:sanctum'])->group(function(){
     Route::post('/quizzes/{quiz}/start', [QuizAttemptController::class, 'start']);
     Route::post('/quiz-attempts/{attempt}/submit', [QuizAttemptController::class, 'submit']);
     Route::get('/quizzes/{quiz}/results', [QuizAttemptController::class, 'results']);
-    Route::delete('/quiz/{attempt}/delete', [QuizAttemptController::class, 'destroy']);    
+    Route::delete('/quiz/{attempt}/delete', [QuizAttemptController::class, 'destroy']);
 
     Route::get('/courses/{course}/reviews', [ReviewController::class, 'index']);
     Route::post('/courses/{course}/reviews', [ReviewController::class, 'store']);
@@ -230,10 +232,10 @@ Route::middleware(['auth:sanctum'])->group(function(){
 
     // Record Conversions & Affiliate Commissions
     Route::post('/record-conversion/{order}', [ConversionTrackingController::class, 'recordConversionFromCheckout']);
-    
+
 
     //Route::post('/affiliate/purchases/track', [AffiliatePurchaseController::class, 'track']);
-    
+
 
 });
 
