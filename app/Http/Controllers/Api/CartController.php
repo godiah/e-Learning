@@ -27,10 +27,10 @@ class CartController extends Controller
 
         try {
             $cart = Cart::where('user_id', $user->id)
-                       ->where('status', 'active')
-                       ->with('items.course')
-                       ->firstOrFail();
-            
+                ->where('status', 'active')
+                ->with('items.course')
+                ->firstOrFail();
+
             if (!$cart || $cart->items->isEmpty()) {
                 return response()->json([
                     'message' => 'No cart items available',
@@ -50,14 +50,14 @@ class CartController extends Controller
     public function addToCart(Request $request)
     {
         $user = request()->user();
-        
+
         $validated = $request->validate([
             'course_id' => 'required|exists:courses,id',
         ]);
 
         try {
             DB::beginTransaction();
-            
+
             // Get or create active cart
             $cart = Cart::firstOrCreate(
                 [
@@ -116,8 +116,8 @@ class CartController extends Controller
             DB::beginTransaction();
 
             $cart = Cart::where('user_id', $user->id)
-                       ->where('status', 'active')
-                       ->firstOrFail();
+                ->where('status', 'active')
+                ->firstOrFail();
 
             $cartItem = $cart->items()->where('id', $cartItemId)->firstOrFail();
             $cartItem->delete();
@@ -137,10 +137,65 @@ class CartController extends Controller
                 'message' => 'Item removed from cart successfully',
                 'cart' => new CartResource($cart->fresh(['items.course']))
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['error' => 'Failed to remove item from cart'], 500);
+        }
+    }
+
+    // Clear all items from cart
+    public function clearCart()
+    {
+        $user = request()->user();
+
+        try {
+            DB::beginTransaction();
+
+            // Find active cart
+            $cart = Cart::where('user_id', $user->id)
+                ->where('status', 'active')
+                ->first();
+
+            // If cart doesn't exist or is empty
+            if (!$cart || $cart->items()->count() === 0) {
+                DB::commit();
+                return response()->json([
+                    'message' => 'Cart is already empty',
+                    'cart' => null
+                ], 200);
+            }
+
+            // Delete all cart items
+            $cart->items()->delete();
+
+            // Update cart totals
+            $cart->update([
+                'total_amount' => 0,
+                'discount_total' => 0,
+                'final_amount' => 0
+            ]);
+
+            // If cart is empty after deletion, delete the cart itself
+            if ($cart->items()->count() === 0) {
+                $cart->delete();
+                DB::commit();
+                return response()->json([
+                    'message' => 'Cart cleared successfully',
+                    'cart' => null
+                ], 200);
+            }
+
+            DB::commit();
+            return response()->json([
+                'message' => 'All items removed from cart',
+                'cart' => new CartResource($cart->fresh(['items.course']))
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'error' => 'Failed to clear cart',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
@@ -152,9 +207,9 @@ class CartController extends Controller
         DB::beginTransaction();
         try {
             $cart = Cart::where('user_id', $user->id)
-                       ->where('status', 'active')
-                       ->with('items.course')
-                       ->firstOrFail();
+                ->where('status', 'active')
+                ->with('items.course')
+                ->firstOrFail();
 
             if ($cart->items->isEmpty()) {
                 return response()->json(['message' => 'Cart is empty'], 400);
@@ -247,8 +302,8 @@ class CartController extends Controller
 
         try {
             $wishlist = Wishlist::where('id', $wishlistId)
-                         ->where('user_id', $user->id)
-                         ->firstOrFail();
+                ->where('user_id', $user->id)
+                ->firstOrFail();
 
             $wishlist->delete();
 
@@ -267,8 +322,8 @@ class CartController extends Controller
 
         try {
             $wishlist = Wishlist::where('user_id', $user->id)
-                        ->with('course')
-                        ->get();
+                ->with('course')
+                ->get();
 
             return response()->json([
                 'wishlist' => WishlistResource::collection($wishlist),
@@ -329,7 +384,7 @@ class CartController extends Controller
             SUM(discount_amount) as discount_total,
             SUM(final_price) as final_amount
         ')->first();
-        
+
         $cart->update([
             'total_amount' => $totals->total_amount ?? 0,
             'discount_total' => $totals->discount_total ?? 0,

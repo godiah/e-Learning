@@ -35,7 +35,7 @@ class InstructorController extends Controller
 
         // Check if an existing application is already pending approval
         $existingApplication = $request->user()->instructorApplication()->where('status', 'pending')->first();
-        
+
         if ($existingApplication) {
             return response()->json([
                 'message' => 'Application already submitted. Please await approval.',
@@ -66,15 +66,11 @@ class InstructorController extends Controller
     {
         $applications = InstructorApplication::where('status', 'pending')->paginate(5);
 
-        if($applications->count()>0)
-        {
+        if ($applications->count() > 0) {
             return InstructorResource::collection($applications)->response();
-        }
-        else
-        {
+        } else {
             return response()->json(['message' => 'No pending instructor applications at the moment.'], 404);
         }
-        
     }
 
     //Approve Applications(userMgtAdmin  ONLY)
@@ -107,4 +103,27 @@ class InstructorController extends Controller
         return response()->json(['message' => 'Application rejected.']);
     }
 
+    // List all approved applications
+    public function approvedApplications()
+    {
+        $applications = InstructorApplication::where('status', 'approved')->paginate(10);
+
+        if ($applications->count() > 0) {
+            return InstructorResource::collection($applications)->response();
+        } else {
+            return response()->json(['message' => 'No approved instructor applications found.'], 404);
+        }
+    }
+
+    // List all rejected applications
+    public function rejectedApplications()
+    {
+        $applications = InstructorApplication::where('status', 'rejected')->paginate(10);
+
+        if ($applications->count() > 0) {
+            return InstructorResource::collection($applications)->response();
+        } else {
+            return response()->json(['message' => 'No rejected instructor applications found.'], 404);
+        }
+    }
 }

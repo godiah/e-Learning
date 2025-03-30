@@ -88,6 +88,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/instructor-applications', [InstructorController::class, 'index']);
         Route::post('/instructor-applications/{application}/approve', [InstructorController::class, 'approve']);
         Route::post('/instructor-applications/{application}/reject', [InstructorController::class, 'reject']);
+        Route::get('/instructor/applications/approved', [InstructorController::class, 'approvedApplications']);
+        Route::get('/instructor/applications/rejected', [InstructorController::class, 'rejectedApplications']);
 
         Route::get('/affiliate-applications', [AffiliateController::class, 'index']);
         Route::post('/affiliates/{affiliate}/approve', [AffiliateController::class, 'approve']);
@@ -222,6 +224,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/add', [CartController::class, 'addToCart']);
         Route::post('/checkout', [CartController::class, 'checkout']);
         Route::delete('/items/{cartItemId}', [CartController::class, 'removeFromCart']);
+        Route::delete('/clear', [CartController::class, 'clearCart']);
     });
 
     Route::prefix('wishlist')->group(function () {
