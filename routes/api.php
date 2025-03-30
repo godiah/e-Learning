@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AffiliateController;
 use App\Http\Controllers\Api\AffiliateLinkController;
 use App\Http\Controllers\Api\AssignmentController;
@@ -57,6 +58,9 @@ Route::get('categories', [CategoriesController::class, 'index'])->name('categori
 Route::get('categories/{category}', [CategoriesController::class, 'show'])->name('categories.show');
 Route::get('courses', [CourseController::class, 'index'])->name('courses.index');
 Route::get('courses/{course}', [CourseController::class, 'show'])->name('courses.show');
+
+// Activities
+Route::post('/activity', [ActivityController::class, 'store']);
 
 
 Route::middleware(['auth:sanctum'])->group(function () {
