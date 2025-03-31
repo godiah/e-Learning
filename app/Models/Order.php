@@ -16,10 +16,9 @@ class Order extends Model
         'total_amount',
         'discount_total',
         'final_amount',
-        'affiliate_code',
         //'payment_id'
     ];
-    
+
     protected $casts = [
         'total_amount' => 'decimal:2',
         'discount_total' => 'decimal:2',
@@ -30,22 +29,29 @@ class Order extends Model
     {
         return $this->belongsTo(User::class);
     }
-    
+
     public function payment()
     {
         return $this->belongsTo(Payment::class);
     }
-    
+
     public function enrollments()
     {
-        return $this->hasMany(Enrollment::class);
+        return $this->hasManyThrough(
+            Enrollment::class,
+            OrderItem::class,
+            'order_id', // Foreign key on order_items table
+            'course_id', // Foreign key on enrollments table
+            'id', // Local key on orders table
+            'course_id' // Local key on order_items table
+        );
     }
 
     public function items()
     {
         return $this->hasMany(OrderItem::class);
     }
-    
+
     public function affiliatePurchases()
     {
         return $this->hasMany(AffiliatePurchase::class);

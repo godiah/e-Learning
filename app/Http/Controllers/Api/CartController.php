@@ -6,12 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CartResource;
 use App\Http\Resources\OrderResource;
 use App\Http\Resources\WishlistResource;
+use App\Mail\OrderConfirmation;
 use App\Models\Affiliate;
 use App\Models\AffiliatePurchase;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Courses;
+use App\Models\Enrollment;
 use App\Models\Order;
+use App\Models\User;
 use App\Models\Wishlist;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -238,14 +241,14 @@ class CartController extends Controller
             }
 
             // Enroll user in courses
-            //$this->enrollUserInCourses($cart, $order->id);
+            $this->enrollUserInCourses($order);
 
             // Delete cart and its items
             $cart->items()->delete();
             $cart->delete();
 
             // Send confirmation email
-            //Mail::to($user)->queue(new OrderConfirmation($order));
+            $this->sendOrderConfirmationEmail($user, $order);
 
             DB::commit();
 
@@ -261,10 +264,12 @@ class CartController extends Controller
 
             return response()->json([
                 'message' => 'Order completed successfully',
-                'order' => new OrderResource($order),
+                'order' => new OrderResource($order->load('enrollments')),
                 'conversion' => $conversionResponseArray['original'] ?? null,
             ]);
         } catch (\Exception $e) {
+            Log::error('Checkout failed: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             DB::rollBack();
             return response()->json(['error' => 'Failed to complete checkout'], 500);
         }
@@ -330,6 +335,36 @@ class CartController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to fetch wishlist'], 500);
+        }
+    }
+
+    // Helper function to enroll user in courses
+    private function enrollUserInCourses(Order $order)
+    {
+        foreach ($order->items as $item) {
+            $courseId = $item->course_id;
+            $existingEnrollment = Enrollment::where('user_id', $order->user_id)
+                ->where('course_id', $courseId)
+                ->first();
+
+            if (!$existingEnrollment) {
+                Enrollment::create([
+                    'user_id' => $order->user_id,
+                    'course_id' => $courseId,
+                    'enrollment_date' => now(),
+                    'completion_date' => null
+                ]);
+            }
+        }
+    }
+
+    // Helper function to send order confirmation email
+    private function sendOrderConfirmationEmail(User $user, Order $order)
+    {
+        try {
+            Mail::to($user)->send(new OrderConfirmation($order));
+        } catch (\Exception $e) {
+            Log::error('Failed to send order confirmation email: ' . $e->getMessage());
         }
     }
 
