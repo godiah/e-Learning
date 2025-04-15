@@ -9,14 +9,12 @@ class Order extends Model
 {
     use HasFactory;
 
-    // Remove affiliate_code and add payment tracking ID
-
     protected $fillable = [
         'user_id',
         'total_amount',
         'discount_total',
         'final_amount',
-        //'payment_id'
+        'payment_id'
     ];
 
     protected $casts = [
@@ -30,9 +28,9 @@ class Order extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function payment()
+    public function paymentTransactions()
     {
-        return $this->belongsTo(Payment::class);
+        return $this->hasMany(PaymentTransaction::class);
     }
 
     public function enrollments()

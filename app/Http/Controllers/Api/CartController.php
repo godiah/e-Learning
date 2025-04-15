@@ -16,6 +16,7 @@ use App\Models\Enrollment;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\Wishlist;
+use App\Services\PesapalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -23,6 +24,13 @@ use Illuminate\Support\Facades\Mail;
 
 class CartController extends Controller
 {
+    protected $pesapalService;
+    
+    public function __construct(PesapalService $pesapalService)
+    {
+        $this->pesapalService = $pesapalService;
+    }
+
     // View active cart items
     public function viewCart()
     {
@@ -202,7 +210,7 @@ class CartController extends Controller
         }
     }
 
-    // Checkout 
+    // Checkout and create order
     public function checkout(Request $request)
     {
         $user = request()->user();
@@ -216,10 +224,7 @@ class CartController extends Controller
 
             if ($cart->items->isEmpty()) {
                 return response()->json(['message' => 'Cart is empty'], 400);
-            }
-
-            // Process payment
-            //$payment = $this->processPayment($request->payment_details, $cart->final_amount);
+            }           
 
             // Create order
             $order = Order::create([
@@ -227,7 +232,6 @@ class CartController extends Controller
                 'total_amount' => $cart->total_amount,
                 'discount_total' => $cart->discount_total,
                 'final_amount' => $cart->final_amount,
-                //'payment_id' => $payment->id
             ]);
 
             foreach ($cart->items as $cartItem) {
@@ -240,38 +244,31 @@ class CartController extends Controller
                 ]);
             }
 
-            // Enroll user in courses
-            $this->enrollUserInCourses($order);
+            // Process payment with Pesapal
+            $paymentResult = $this->pesapalService->submitOrder($order, $user);
+            
+            if (!$paymentResult['success']) {
+                throw new \Exception('Payment initiation failed: ' . ($paymentResult['message'] ?? 'Unknown error'));
+            }
 
-            // Delete cart and its items
-            $cart->items()->delete();
-            $cart->delete();
-
-            // Send confirmation email
-            $this->sendOrderConfirmationEmail($user, $order);
+            // We will keep the cart until payment is confirmed via IPN
 
             DB::commit();
 
-            // Record the conversion associated with an affiliate click:
-            $response = app()->call('App\Http\Controllers\Api\ConversionTrackingController@recordConversionFromCheckout', [
-                'request' => $request,
-                'order'   => $order
-            ]);
-
-            Log::info('Conversion call response: ' . json_encode($response));
-
-            $conversionResponseArray = $response->getData(true);
-
             return response()->json([
-                'message' => 'Order completed successfully',
-                'order' => new OrderResource($order->load('enrollments')),
-                'conversion' => $conversionResponseArray['original'] ?? null,
+                'message' => 'Order created and payment initiated',
+                'order' => new OrderResource($order),
+                'payment' => [
+                    'redirect_url' => $paymentResult['redirect_url'],
+                    'transaction_reference' => $paymentResult['transaction']->reference,
+                ]
             ]);
+
         } catch (\Exception $e) {
             Log::error('Checkout failed: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());
             DB::rollBack();
-            return response()->json(['error' => 'Failed to complete checkout'], 500);
+            return response()->json(['error' => 'Failed to complete checkout: ' . $e->getMessage()], 500);
         }
     }
 
@@ -337,80 +334,6 @@ class CartController extends Controller
             return response()->json(['error' => 'Failed to fetch wishlist'], 500);
         }
     }
-
-    // Helper function to enroll user in courses
-    private function enrollUserInCourses(Order $order)
-    {
-        foreach ($order->items as $item) {
-            $courseId = $item->course_id;
-            $existingEnrollment = Enrollment::where('user_id', $order->user_id)
-                ->where('course_id', $courseId)
-                ->first();
-
-            if (!$existingEnrollment) {
-                Enrollment::create([
-                    'user_id' => $order->user_id,
-                    'course_id' => $courseId,
-                    'enrollment_date' => now(),
-                    'completion_date' => null
-                ]);
-            }
-        }
-    }
-
-    // Helper function to send order confirmation email
-    private function sendOrderConfirmationEmail(User $user, Order $order)
-    {
-        try {
-            Mail::to($user)->send(new OrderConfirmation($order));
-        } catch (\Exception $e) {
-            Log::error('Failed to send order confirmation email: ' . $e->getMessage());
-        }
-    }
-
-    // private function validateAffiliateCode($affiliateCode)
-    // {
-    //     $affiliate = Affiliate::whereHas('link', function ($query) use ($affiliateCode) {
-    //         $query->where('code', $affiliateCode);
-    //     })->first();
-
-    //     if (!$affiliate) {
-    //         return 'Invalid affiliate code';
-    //     }
-
-    //     if ($affiliate->status !== 'approved') {
-    //         return 'This affiliate code is currently suspended';
-    //     }
-
-    //     return true;
-    // }
-
-    // private function processAffiliateCommission($cart, $orderId, $affiliateCode)
-    // {
-    //     $user = request()->user();
-
-    //     $affiliate = Affiliate::whereHas('link', function ($query) use ($affiliateCode) {
-    //         $query->where('code', $affiliateCode);
-    //     })
-    //     ->where('status', 'approved')
-    //     ->firstOrFail();
-
-    //     foreach ($cart->items as $item) {
-    //         $commission = $item->final_price * ($affiliate->commission_rate / 100);
-
-    //         AffiliatePurchase::create([
-    //             'affiliate_id' => $affiliate->id,
-    //             'user_id' => $user->id,
-    //             'order_id' => $orderId,
-    //             'amount' => $item->final_price,
-    //             'commission' => $commission,
-    //             'status' => 'pending'
-    //         ]);
-
-    //         $affiliate->increment('total_sales');
-    //         $affiliate->increment('total_earnings', $commission);
-    //     }
-    // }
 
     private function updateCartTotals(Cart $cart)
     {

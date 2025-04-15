@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\TrackingController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserQuizAttemptController;
 use App\Http\Controllers\Api\VideoProgressController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\InstructorMiddleware;
 use Illuminate\Http\Request;
@@ -248,6 +249,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 });
 
+// Payment routes
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Process payment for an order
+    Route::post('/orders/{order}/process-payment', [PaymentController::class, 'processPayment']);
+    
+    // Check payment status
+    Route::get('/orders/{order}/payment-status', [PaymentController::class, 'checkStatus']);
+});
+
+// Public routes for Pesapal callbacks
+Route::get('/payments/pesapal/callback', [PaymentController::class, 'callback'])->name('pesapal.callback');
+Route::get('/payments/pesapal/ipn', [PaymentController::class, 'ipn'])->name('pesapal.ipn');
 
 Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();

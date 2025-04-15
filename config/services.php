@@ -41,4 +41,16 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    'pesapal' => [
+        'environment' => env('PESAPAL_ENVIRONMENT', 'sandbox'),
+        'base_url' => env('PESAPAL_BASE_URL', 'https://cybqa.pesapal.com/pesapalv3'),
+        'base_url_live' => env('PESAPAL_BASE_URL_LIVE', 'https://pay.pesapal.com/v3'),
+        'consumer_key' => env('PESAPAL_CONSUMER_KEY'),
+        'consumer_secret' => env('PESAPAL_CONSUMER_SECRET'),
+        // 'consumer_key_live' => env('PESAPAL_CONSUMER_KEY_LIVE'),
+        // 'consumer_secret_live' => env('PESAPAL_CONSUMER_SECRET_LIVE'),
+        'callback_url' => env('PESAPAL_CALLBACK_URL', '/api/payments/pesapal/callback'),
+        'ipn_url' => env('PESAPAL_IPN_URL', config('app.url') . '/api/payments/pesapal/ipn'),
+    ],
+
 ];
